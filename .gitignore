@@ -1,0 +1,125 @@
+# -------------------------
+# Python-specific
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.venv/
+*.pkl
+*.npy
+*.npz
+*.ipynb
+.ipynb_checkpoints/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+*.egg
+*.egg-info/
+*.whl
+eggs/
+dist/
+build/
+sdist/
+
+# -------------------------
+# Data science and machine learning
+# -------------------------
+*.csv
+*.tsv
+*.jsonl
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.model
+*.ckpt
+data/
+dataset/
+*.zip
+*.gz
+*.tar
+*.tar.gz
+
+# -------------------------
+# Environment and secrets
+# -------------------------
+.env
+.env.*
+*.secret
+*.key
+*.pem
+credentials.json
+config.yaml
+secrets/
+
+# -------------------------
+# General
+# -------------------------
+*.log
+*.bak
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Editor/IDE files
+# -------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# -------------------------
+# Build and dependency directories
+# -------------------------
+node_modules/
+dist/
+build/
+out/
+bin/
+obj/
+
+# -------------------------
+# Temporary files
+# -------------------------
+tmp/
+temp/
+.cache/
+*.tmp
+*.temp
+
+# -------------------------
+# OS-specific
+# -------------------------
+.Trashes
+.Spotlight-V100
+.fseventsd
+
+# -------------------------
+# Test and coverage reports
+# -------------------------
+coverage/
+*.coverage
+*.lcov
+pytest_cache/
+.pytest_cache/
+.coverage
+
+# -------------------------
+# Documentation build outputs
+# -------------------------
+_site/
+docs/_build/
+
+
+
+
