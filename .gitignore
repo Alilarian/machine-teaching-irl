@@ -26,6 +26,16 @@ dist/
 build/
 sdist/
 
+__pycache__/
+*.pyc
+*.jpeg
+*.zip
+*.jpeg
+../aws/
+*.npy
+*.jpeg
+*.pdf
+
 # -------------------------
 # Data science and machine learning
 # -------------------------

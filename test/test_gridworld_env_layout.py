@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import numpy as np
 import pytest
 import pygame
-from env.gridworld_env_layout import GridWorldMDPFromLayoutEnv  # Adjust path based on your structure
+from mdp.gridworld_env_layout import GridWorldMDPFromLayoutEnv  # Adjust path based on your structure
 
 # Sample layout and feature map for testing
 sample_layout = [
