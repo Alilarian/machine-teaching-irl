@@ -82,7 +82,6 @@ class NoisyLinearRewardFeaturizedGridWorldEnv(gym.Env):
         else:
             # Normal sorting for non-goal-reaching tasks
             self.feature_weights = np.random.randn(self.num_features)
-            self.feature_weights /= np.linalg.norm(self.feature_weights)
 
         self.transitions = np.zeros((self.num_states, self.num_actions, self.num_states))
         self.initialize_transition_matrix()
