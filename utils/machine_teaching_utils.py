@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import linprog
 
 # ---------- small helpers ----------
 
@@ -271,3 +272,88 @@ def remove_redundant_constraints(halfspaces, epsilon = 0.0001):
             
         halfspaces_to_check = halfspaces_to_check[1:]
     return non_redundant_halfspaces
+
+# ============================================================
+# 5) Generating trajectories
+# ============================================================
+
+def generate_candidates(env, pi_star, num_rollouts_per_state=1, max_steps=15):
+    """
+    Generate trajectories as lists of (state, action) pairs by following a
+    deterministic policy given as a list of (state, action) pairs.
+    """
+    S = env.get_num_states()
+    A = env.get_num_actions()
+
+    # Build a deterministic action map; -1 means "no action specified for this state"
+    a_star = np.full(S, -1, dtype=int)
+    for s, a in pi_star:
+        a_star[int(s)] = int(a)
+
+    terminals = set(env.terminal_states or [])
+    T = env.transitions  # already row-stochastic, terminals are absorbing
+
+    trajectories = []
+    for start_s in range(S):
+        if start_s in terminals or a_star[start_s] < 0:
+            continue  # skip terminal starts or states without a specified action
+
+        for _ in range(num_rollouts_per_state):
+            tau, s, steps = [], int(start_s), 0
+            while steps < max_steps and s not in terminals:
+                a = a_star[s]
+                if a < 0:
+                    break  # hit a state without a specified action; stop this rollout
+                tau.append((s, a))
+                # Sample next state from T[s, a, :]
+                s = int(np.random.choice(S, p=T[s, a]))
+                steps += 1
+            trajectories.append(tau)
+
+    return trajectories
+
+def generate_candidates_from_q(
+    env,
+    q_values,                      # shape (S, A)
+    num_rollouts_per_state=1,
+    max_steps=15,
+    tie_eps=1e-10,
+):
+    """
+    Generate trajectories as lists of (state, action) pairs by following a greedy
+    policy derived from q_values, sampling next states from env.transitions.
+    """
+    S = env.get_num_states()
+    A = env.get_num_actions()
+    terminals = set(env.terminal_states or [])
+    T = env.transitions   # already row-stochastic per your env
+
+    # Precompute greedy action sets (allowing ties within tie_eps)
+    opt_actions = [[] for _ in range(S)]
+    for s in range(S):
+        if s in terminals:
+            continue
+        row = q_values[s]
+        max_q = np.max(row)
+        opt_actions[s] = [a for a in range(A) if abs(row[a] - max_q) < tie_eps]
+
+    
+    print(opt_actions)
+    trajectories = []
+    for start_s in range(S):
+        if start_s in terminals or not opt_actions[start_s]:
+            continue  # skip terminal starts or states with no valid action
+
+        for _ in range(num_rollouts_per_state):
+            tau, s, steps = [], int(start_s), 0
+            while steps < max_steps and s not in terminals:
+                acts = opt_actions[s]
+                if not acts:
+                    break
+                a = int(np.random.choice(acts))           # pick among optimal actions
+                tau.append((s, a))
+                s = int(np.random.choice(S, p=T[s, a]))   # sample next state from transitions
+                steps += 1
+            trajectories.append(tau)
+
+    return trajectories
