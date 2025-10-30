@@ -13,8 +13,6 @@ ENV/
 *.pkl
 *.npy
 *.npz
-*.ipynb
-.ipynb_checkpoints/
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/

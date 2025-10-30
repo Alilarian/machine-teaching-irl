@@ -303,3 +303,123 @@ def generate_candidates_from_q(
             trajectories.append(tau)
 
     return trajectories
+
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+
+def _intersection_polygon_2d(V, box=1.0, tol=1e-12):
+    """
+    Return vertices (k,2) of the bounded intersection:
+        { w : w^T v_i >= 0 for all i }  ∩  { |w1|<=box, |w2|<=box }
+    as a convex polygon ordered counter-clockwise.
+    """
+    V = np.asarray(V, float).reshape(-1, 2)
+
+    # Convert to a_i x + b_i y + c_i <= 0 form (halfspace format)
+    # w^T v >= 0  <=>  (-v)^T w <= 0  -> a=-vx, b=-vy, c=0
+    half = [(-vx, -vy, 0.0) for (vx, vy) in V]
+
+    # Bounding box (keeps region bounded for plotting)
+    half += [( 1, 0, -box), (-1, 0, -box), (0, 1, -box), (0, -1, -box)]
+
+    pts = []
+    m = len(half)
+    for i in range(m):
+        a1, b1, c1 = half[i]
+        for j in range(i + 1, m):
+            a2, b2, c2 = half[j]
+            D = a1 * b2 - a2 * b1
+            if abs(D) < tol:
+                continue  # parallel lines
+            x = (b1 * c2 - b2 * c1) / D
+            y = (c1 * a2 - c2 * a1) / D
+            # keep if satisfies all halfspaces
+            if all(a * x + b * y + c <= tol for (a, b, c) in half):
+                pts.append((x, y))
+
+    if not pts:
+        return np.empty((0, 2))
+
+    pts = np.unique(np.round(pts, 12), axis=0)  # dedup numerically
+    c = pts.mean(axis=0)
+    ang = np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0])
+    order = np.argsort(ang)
+    return pts[order]
+
+def plot_halfspace_intersection_2d(
+    V,
+    *,
+    box=1.0,
+    colors=None,
+    labels=None,
+    w_true=None,
+    scot_sol=None,
+    title="Intersection of half-spaces"
+):
+    """
+    V: (m,2) array of normals; each row v defines w^T v >= 0.
+    box: plot window [-box, box]^2 and bounding halfspaces.
+    colors/labels: optional per-constraint styling.
+    w_true: optional (w1, w2) to mark with a star.
+    """
+    V = np.asarray(V, float).reshape(-1, 2)
+    m = len(V)
+    xs = np.linspace(-box, box, 400)
+
+    if colors is None:
+        colors = ["#d81b60", "#008080", "#1f77b4", "#ff7f0e"]  # magenta/teal first
+    if labels is None:
+        labels = [f"Constraint {i+1}" for i in range(m)]
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # Draw each boundary v_x x + v_y y = 0
+    handles = []
+    for i, (vx, vy) in enumerate(V):
+        col = colors[i % len(colors)]
+        if abs(vy) < 1e-12:
+            h = ax.axvline(0, color=col, lw=4, label=labels[i])
+        else:
+            y_line = -(vx / vy) * xs
+            
+            h, = ax.plot(xs, y_line, color=col, lw=1, label=labels[i])
+        handles.append(h)
+
+    # Compute and shade feasible polygon (hatched)
+    poly = _intersection_polygon_2d(V, box=box)
+    print(poly)
+    if poly.shape[0] > 0:
+        patch = Polygon(
+            poly, closed=True, facecolor="#f5bd23", alpha=0.9,
+            edgecolor="none", hatch="///"
+        )
+        ax.add_patch(patch)
+
+    # Axes, limits, labels
+    ax.axhline(0, color="k", lw=1)
+    ax.axvline(0, color="k", lw=1)
+    ax.set_xlim(-box, box)
+    ax.set_ylim(-box, box)
+    ax.set_aspect("equal", "box")
+    ax.set_xlabel("w1")
+    ax.set_ylabel("w2")
+
+    # True reward (optional)
+    if w_true is not None:
+        ax.plot(w_true[0], w_true[1], marker="*", color="k", ms=10, label="True Reward")
+        
+    if scot_sol:
+        ax.plot(scot_sol[0] , scot_sol[1] , marker="*", color="#23f523", ms=10, label="MAP from SCOT")
+        
+    # Build a clean legend (constraint lines + star if present)
+    if w_true is not None:
+        ax.legend(loc="upper right")
+    else:
+        ax.legend(handles=handles, loc="upper right")
+
+    ax.set_title(title)
+    plt.show()
