@@ -391,7 +391,7 @@ def plot_halfspace_intersection_2d(
 
     # Compute and shade feasible polygon (hatched)
     poly = _intersection_polygon_2d(V, box=box)
-    print(poly)
+    
     if poly.shape[0] > 0:
         patch = Polygon(
             poly, closed=True, facecolor="#f5bd23", alpha=0.9,

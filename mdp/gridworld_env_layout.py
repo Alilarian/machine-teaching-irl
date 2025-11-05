@@ -154,8 +154,6 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
                 self.transitions[t, :, :] = 0.0
                 self.transitions[t, :, t] = 1.0
 
-    # ----------------- Gym API -----------------
-
     def get_num_states(self):
         return self.num_states
 
@@ -208,8 +206,6 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
             self.render_grid_frame()
         return obs
 
-    # ----------------- Observations / rewards -----------------
-
     def get_observation(self):
         return {"agent": self._agent_location, "terminal states": self.terminal_states}
 
@@ -221,87 +217,6 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
     def get_cell_features(self, position):
         # Now returns numeric feature vector directly (matches SF expectation on env.grid_features)
         return self.grid_features[position[0], position[1]]
-
-    # ----------------- Rendering -----------------
-
-    # def render_grid_frame(self):
-    #     if self.window is None and self.render_mode == "human":
-    #         pygame.init()
-    #         pygame.display.init()
-    #         self.window = pygame.display.set_mode(
-    #             (self.columns * self.pix_square_width, self.rows * self.pix_square_height)
-    #         )
-    #     if self.clock is None and self.render_mode == "human":
-    #         self.clock = pygame.time.Clock()
-
-    #     canvas = pygame.Surface(
-    #         (self.columns * self.pix_square_width, self.rows * self.pix_square_height)
-    #     )
-    #     canvas.fill((255, 255, 255))
-
-    #     self._draw_grid(canvas)
-    #     self._draw_agent(canvas)
-    #     self._draw_gridlines(canvas)
-
-    #     if self.render_mode == "human":
-    #         self.window.blit(canvas, canvas.get_rect())
-    #         pygame.event.pump()
-    #         pygame.display.update()
-    #         self.clock.tick(self.metadata["render_fps"])
-
-    # def _draw_grid(self, canvas):
-    #     color_map = {
-    #         "blue": (0, 0, 255),
-    #         "red": (255, 0, 0),
-    #         "green": (0, 255, 0),
-    #         "yellow": (255, 255, 0),
-    #         "purple": (128, 0, 128),
-    #         "orange": (255, 165, 0),
-    #     }
-    #     # Draw terminal cells as black
-    #     for t in self.terminal_states:
-    #         r, c = divmod(t, self.columns)
-    #         pygame.draw.rect(
-    #             canvas, (0, 0, 0),
-    #             pygame.Rect(self.pix_square_width * c, self.pix_square_height * r,
-    #                         self.pix_square_width, self.pix_square_height)
-    #         )
-
-    #     # Draw other cells using stored color names
-    #     for x in range(self.rows):
-    #         for y in range(self.columns):
-    #             if any((x, y) == divmod(ts, self.columns) for ts in self.terminal_states):
-    #                 continue
-    #             color = color_map[self.grid_colors[x, y]]
-    #             pygame.draw.rect(
-    #                 canvas, color,
-    #                 pygame.Rect(self.pix_square_width * y, self.pix_square_height * x,
-    #                             self.pix_square_width, self.pix_square_height)
-    #             )
-
-    # def _draw_agent(self, canvas):
-    #     pygame.draw.circle(
-    #         canvas, (42, 42, 42),
-    #         ((self._agent_location[1] + 0.5) * self.pix_square_width,
-    #          (self._agent_location[0] + 0.5) * self.pix_square_height),
-    #         min(self.pix_square_width, self.pix_square_height) / 3
-    #     )
-
-    # def _draw_gridlines(self, canvas):
-    #     for x in range(self.rows + 1):
-    #         pygame.draw.line(
-    #             canvas, (0, 0, 0),
-    #             (0, self.pix_square_height * x),
-    #             (self.columns * self.pix_square_width, self.pix_square_height * x), width=3
-    #         )
-    #     for y in range(self.columns + 1):
-    #         pygame.draw.line(
-    #             canvas, (0, 0, 0),
-    #             (self.pix_square_width * y, 0),
-    #             (self.pix_square_width * y, self.rows * self.pix_square_height), width=3
-    #         )
-
-    # ----------------- misc -----------------
 
     def set_random_seed(self, seed):
         np.random.seed(seed)

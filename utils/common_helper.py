@@ -485,7 +485,6 @@ def log_prob_comparison(env, demos, theta, beta):
 
     return log_sum
 
-
 # removing dublicates in a given trajectory
 def dedup_traj(traj):
     seen = set()
@@ -495,3 +494,22 @@ def dedup_traj(traj):
             seen.add(sa)
             out.append(sa)
     return out
+
+def bucket_and_dedup(chosen, num_envs, dedup_across_trajs=False):
+    demos_by_env = [[] for _ in range(num_envs)]
+    if dedup_across_trajs:
+        seen_env = [set() for _ in range(num_envs)]
+
+    for mdp_idx, traj in chosen:
+        t = dedup_traj(traj)  # de-dup within this trajectory
+        if dedup_across_trajs:
+            # add only pairs not yet seen in this env
+            for sa in t:
+                if sa not in seen_env[mdp_idx]:
+                    seen_env[mdp_idx].add(sa)
+                    demos_by_env[mdp_idx].append(sa)
+        else:
+            # keep all (s,a) from this de-duped trajectory
+            demos_by_env[mdp_idx].extend(t)
+
+    return demos_by_env
