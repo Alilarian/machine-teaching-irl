@@ -191,264 +191,210 @@ class ValueIteration:
                 policy.append((s, best_action))
         return policy
 
-
-# class ValueIteration:
-#     """
-#     Implements the Value Iteration algorithm for solving a Markov Decision Process (MDP).
-
-#     Attributes:
-#         mdp: An MDP object containing transition probabilities, rewards, and discount factor.
-#     """
-#     def __init__(self, mdp):
-#         """
-#         Initializes the ValueIteration class with the MDP.
-
-#         Args:
-#             mdp: The Markov Decision Process (MDP) that the value iteration will solve.
-#         """
-#         self.mdp = mdp
-#         self.state_values = np.zeros(self.mdp.get_num_states(), dtype=float)
-
-#     def run_value_iteration(self, epsilon=1e-10):
-#         """
-#         Performs the Value Iteration algorithm to compute the optimal value function.
-
-#         Args:
-#             epsilon: The convergence threshold for stopping the iteration (default is 0.0001).
-
-#         Returns:
-#             state_values: A numpy array containing the optimal value for each state.
-#         """
-#         # Initialize delta to a large number and state_values to zero for all states
-#         delta = np.inf
-#         # Initialize all state values to zero
-
-#         # Continue iterating until the maximum value change (delta) is smaller than the threshold
-#         discount_factor = self.mdp.get_discount_factor()
-        
-#         threshold = epsilon * (1 - discount_factor) / discount_factor
-
-#         while delta > threshold:
-#         #for _ in range(80000):
-#             # Copy current state values to use in the next iteration
-#             previous_state_values = self.state_values.copy()
-#             delta = 0
-
-#             # Iterate over all states in the MDP
-#             for state in range(self.mdp.get_num_states()):
-#                 #if state in self.mdp.terminal_states:
-#                 #    continue
-#                 max_action_value = -np.inf  # Start with the lowest possible value for action evaluation
-                
-#                 # Iterate over all possible actions in the current state
-#                 for action in range(self.mdp.get_num_actions()):
-#                     # Calculate the expected value of taking this action in the current state
-#                     expected_action_value = np.dot(self.mdp.transitions[state][action], previous_state_values)
-#                     # Keep track of the highest action value (optimal action)
-#                     max_action_value = max(expected_action_value, max_action_value)
-
-#                 # Update the value of the current state using the Bellman optimality equation
-#                 self.state_values[state] = self.mdp.compute_reward(state) + discount_factor * max_action_value
-
-#                 # Calculate the difference between the new and old value for this state (for convergence check)
-#                 delta = max(delta, np.abs(self.state_values[state] - previous_state_values[state]))
-
-#         # Return the optimal state values once convergence is reached
-#         return self.state_values
-    
-#     def get_optimal_policy(self):
-#         """
-#         Extracts the optimal policy based on the computed state values.
-
-#         Returns:
-#             policy: A list of tuples (state, optimal_action) representing the optimal policy.
-#         """
-#         # Check if state values have been computed; if not, run value iteration
-#         if np.all(self.state_values == 0):
-#             print("State values are all zero. Running value iteration...")
-#             self.run_value_iteration()
-
-#         optimal_policy = []  # List to store (state, optimal_action) pairs
-
-#         # Compute the optimal action for each state
-#         for state in range(self.mdp.get_num_states()):
-#             max_action_value = -np.inf
-#             best_action = None
-#             # Iterate over all actions to find the optimal one
-#             for action in range(self.mdp.get_num_actions()):
-#                 expected_action_value = np.dot(
-#                     self.mdp.transitions[state][action], self.state_values
-#                 )
-#                 if expected_action_value > max_action_value:
-#                     max_action_value = expected_action_value
-#                     best_action = action
-
-#             # Store the (state, optimal_action) pair
-#             optimal_policy.append((state, best_action))
-
-#         return optimal_policy
-
-#     def get_q_values(self, state_values=None):
-#         """
-#         Computes the Q-values for all state-action pairs based on the provided or computed state values.
-
-#         Args:
-#             state_values: A numpy array containing the value of each state. If not provided, the function
-#                         will run value iteration to compute the optimal state values.
-
-#         Returns:
-#             qvalues: A numpy array of shape (num_states, num_actions) containing the Q-value for each state-action pair.
-#         """
-#         # Run value iteration if state_values are not provided
-#         if state_values is None:
-#             state_values = self.run_value_iteration()
-
-#         # Initialize Q-values array with shape (num_states, num_actions)
-#         num_states = self.mdp.get_num_states()
-#         num_actions = self.mdp.get_num_actions()
-#         qvalues = np.zeros((num_states, num_actions), dtype=float)
-
-#         discount_factor = self.mdp.get_discount_factor()
-
-#         # Compute Q-values for each state-action pair
-#         for state in range(self.mdp.get_num_states()):
-#             #if state in self.mdp.terminal_states:
-#             #    qvalues[state,:] = 0
-#             #else:
-#             for action in range(self.mdp.get_num_actions()):
-#                 # Q(s, a) = R(s, a) + γ * Σ_s' P(s' | s, a) * V(s')
-#                 expected_value_of_next_state = np.dot(self.mdp.transitions[state][action], state_values)
-#                 reward = self.mdp.compute_reward(state)
-#                 qvalues[state][action] = reward + discount_factor * expected_value_of_next_state
-
-#         return qvalues
-
 class PolicyEvaluation:
     """
-    Implements policy evaluation for a given policy in a Markov Decision Process (MDP).
+    Policy evaluation aligned with ValueIteration:
 
-    Attributes:
-        mdp: The MDP object that contains transitions, rewards, and discount factor.
-        policy: The policy being evaluated, which can be deterministic.
-        uniform_random: A boolean flag indicating if the policy is a uniform random policy.
+    Assumptions about `mdp` match ValueIteration:
+      - mdp.transitions: numpy array with shape (S, A, S), row-stochastic per (s,a)
+      - mdp.get_num_states() -> int
+      - mdp.get_num_actions() -> int
+      - mdp.get_discount_factor() -> float in [0, 1)
+      - mdp.compute_reward(s: int) -> float  (state-based reward function)
+      - Optional: mdp.terminal_states -> iterable of terminal state indices (absorbing)
+
+    Reward conventions:
+      - "on":       V(s) = r_on[s] + γ * Σ_a π(s,a) Σ_{s'} T[s,a,s'] V(s')
+      - "entering": V(s) = Σ_a π(s,a) Σ_{s'} T[s,a,s'] * ( r_enter[s'] + γ V(s') )
+
+    Terminal handling (identical to ValueIteration):
+      - If clamp_terminal_values=True: enforce V(t)=terminal_value and leave Π(t,·)=0, Q(t,·)=0.
     """
 
-    def __init__(self, mdp, policy=None, uniform_random=False):
-        """
-        Initializes the PolicyEvaluation class with the MDP and policy.
-
-        Args:
-            mdp: The Markov Decision Process (MDP) object.
-            policy: A policy mapping states to actions (deterministic).
-            uniform_random: Boolean indicating if the policy is a uniform random policy.
-        """
+    def __init__(
+        self,
+        mdp,
+        policy=None,
+        uniform_random: bool = False,
+        reward_convention: str = "entering",
+        clamp_terminal_values: bool = True,
+        terminal_value: float = 0.0,
+    ):
         self.mdp = mdp
-        self.policy = policy
-        self.uniform_random = uniform_random
+        self.S = mdp.get_num_states()
+        self.A = mdp.get_num_actions()
+        self.gamma = float(mdp.get_discount_factor())
+        if not (0.0 <= self.gamma < 1.0):
+            raise ValueError("Discount factor γ must be in [0, 1).")
 
-    def run_policy_evaluation(self, epsilon):
+        self.reward_convention = reward_convention.lower().strip()
+        if self.reward_convention not in ("on", "entering"):
+            raise ValueError("reward_convention must be 'on' or 'entering'.")
+
+        self.clamp_terminal_values = bool(clamp_terminal_values)
+        self.terminal_value = float(terminal_value)
+
+        # Transitions and terminals
+        self.T = np.asarray(mdp.transitions, dtype=float)  # (S, A, S)
+        if self.T.shape != (self.S, self.A, self.S):
+            raise ValueError("mdp.transitions must have shape (S, A, S).")
+        self.terminals = set(getattr(mdp, "terminal_states", []) or [])
+
+        # Rewards consistent with ValueIteration
+        self.r_on = np.array([mdp.compute_reward(s) for s in range(self.S)], dtype=float)
+        self.r_enter = self.r_on.copy()  # entering uses compute_reward(s') as well
+
+        # Policy handling
+        self.uniform_random = bool(uniform_random)
+        self.Pi = self._build_policy_matrix(policy, self.uniform_random)
+
+        # State values buffer (optional persistence)
+        self.state_values = np.zeros(self.S, dtype=float)
+
+    # ---- helpers -------------------------------------------------------------
+
+    def _threshold(self, epsilon: float) -> float:
+        """Match ValueIteration convergence threshold; special-case γ=0."""
+        if self.gamma == 0.0:
+            return float(epsilon)
+        return float(epsilon * (1.0 - self.gamma) / self.gamma)
+
+    def _build_policy_matrix(self, policy, uniform_random: bool) -> np.ndarray:
         """
-        Runs the policy evaluation algorithm to compute the state value function for the given policy.
-
-        Args:
-            epsilon: The convergence threshold for stopping the iteration.
-
-        Returns:
-            state_values: A numpy array representing the value of each state under the given policy.
+        Construct Π as (S,A) row-stochastic matrix.
+        Accepts:
+          - None + uniform_random=True  -> uniform over actions for non-terminals
+          - (S,A) numpy array           -> validated as row-stochastic on non-terminals
+          - list/array of actions       -> deterministic Π with 1 on chosen action
+          - list of (state, action|None) pairs (from ValueIteration.get_optimal_policy)
+        For terminal states: Π(t,·) = 0 (row of zeros), matching ValueIteration behavior.
         """
-        
-        if self.uniform_random:
-            return self.run_uniform_policy_evaluation(epsilon)
+        Pi = np.zeros((self.S, self.A), dtype=float)
+
+        if uniform_random:
+            for s in range(self.S):
+                if s in self.terminals:
+                    continue
+                Pi[s, :] = 1.0 / self.A
+            return Pi
+
+        if policy is None:
+            raise ValueError("Provide a policy or set uniform_random=True.")
+
+        # If matrix provided
+        if isinstance(policy, np.ndarray):
+            if policy.shape != (self.S, self.A):
+                raise ValueError("Policy matrix must have shape (S, A).")
+            Pi[:] = policy
         else:
-            return self.run_deterministic_policy_evaluation(epsilon)
+            # If list/tuple provided
+            # Accept either [action, ...] or [(state, action_or_None), ...]
+            if isinstance(policy, (list, tuple)) and len(policy) == self.S:
+                # [(s, a|None)] or [a|None]
+                if isinstance(policy[0], (list, tuple)) and len(policy[0]) == 2:
+                    # [(s, a|None)]
+                    for s, a in policy:
+                        if s in self.terminals or a is None:
+                            continue
+                        Pi[s, int(a)] = 1.0
+                else:
+                    # [a|None]
+                    for s, a in enumerate(policy):
+                        if s in self.terminals or a is None:
+                            continue
+                        Pi[s, int(a)] = 1.0
+            else:
+                raise ValueError("Unsupported policy format.")
 
-    def run_deterministic_policy_evaluation(self, epsilon):
+        # Enforce terminal rows = 0
+        if self.terminals:
+            Pi[list(self.terminals), :] = 0.0
+
+        # Validate / renormalize non-terminal rows if needed
+        for s in range(self.S):
+            if s in self.terminals:
+                continue
+            row_sum = Pi[s].sum()
+            if row_sum <= 0:
+                raise ValueError(f"Policy row {s} has zero mass for non-terminal state.")
+            # Soft renormalize to guard tiny drift
+            Pi[s] /= row_sum
+
+        return Pi
+
+    def set_policy(self, policy=None, uniform_random: bool = False):
+        """Update Π cleanly (shape/format checks identical to __init__)."""
+        self.Pi = self._build_policy_matrix(policy, uniform_random)
+
+    # ---- evaluation ----------------------------------------------------------
+
+    def run_policy_evaluation(self, epsilon: float = 1e-10, max_iters: int = 1_000_000):
         """
-        Runs policy evaluation for deterministic policies.
-        
-        Args:
-            epsilon: The convergence threshold for stopping the iteration.
-        
-        Returns:
-            state_values: A numpy array representing the value of each state under the given policy.
+        Iterative policy evaluation with the same reward convention and terminal clamping
+        semantics as ValueIteration. Returns V as (S,).
         """
-        # Initialize delta to a large number and state_values to zero for all states
-        self.policy = [x[1] for x in self.policy]
+        V = self.state_values  # alias
+        V[:] = 0.0  # fresh evaluation
+        thresh = self._threshold(epsilon)
+
         delta = np.inf
-        state_values = np.zeros(self.mdp.get_num_states(), dtype=float)  # Initialize all state values to zero
+        iters = 0
 
-        # Continue iterating until the maximum value change (delta) is smaller than the threshold
-        discount_factor = self.mdp.get_discount_factor()
-        threshold = epsilon * (1 - discount_factor) / discount_factor
+        while delta > thresh and iters < max_iters:
+            V_prev = V.copy()
+            delta = 0.0
 
-        while delta > threshold:
-            # Copy current state values to use in the next iteration
-            previous_state_values = state_values.copy()
-            delta = 0
+            if self.reward_convention == "entering":
+                # Vector used for all (s,a):  T[s,a] @ (r_enter + γ V_prev)
+                target = self.r_enter + self.gamma * V_prev  # (S,)
+                for s in range(self.S):
+                    if self.clamp_terminal_values and s in self.terminals:
+                        new_v = self.terminal_value
+                    else:
+                        exp_sa = self.T[s] @ target     # (A,)
+                        new_v = float(np.dot(self.Pi[s], exp_sa))
+                    delta = max(delta, abs(new_v - V_prev[s]))
+                    V[s] = new_v
 
-            # Iterate over all states in the MDP
-            for state in range(self.mdp.num_states):
-                #if state in self.mdp.terminal_states:
-                #    continue
-                # Deterministic policy: a single action for the state
-                action = self.policy[state]
-                policy_action_value = np.dot(self.mdp.transitions[state][action], previous_state_values)
+            else:  # "on"
+                for s in range(self.S):
+                    if self.clamp_terminal_values and s in self.terminals:
+                        new_v = self.terminal_value
+                    else:
+                        exp_sa = self.T[s] @ V_prev     # (A,)
+                        new_v = float(self.r_on[s] + self.gamma * np.dot(self.Pi[s], exp_sa))
+                    delta = max(delta, abs(new_v - V_prev[s]))
+                    V[s] = new_v
 
-                # Update the state value using the reward and the expected future discounted value
-                state_values[state] = self.mdp.compute_reward(state) + discount_factor * policy_action_value
+            iters += 1
 
-                # Update delta to track the maximum change in state values
-                delta = max(delta, abs(state_values[state] - previous_state_values[state]))
+        self.state_values = V
+        return V
 
-        return state_values
-
-    def run_uniform_policy_evaluation(self, epsilon):
+    def get_q_values(self, state_values: np.ndarray | None = None) -> np.ndarray:
         """
-        Runs policy evaluation assuming a uniform random policy where all actions are equally likely.
-
-        Args:
-            epsilon: The convergence threshold for stopping the iteration.
-
-        Returns:
-            state_values: A numpy array representing the value of each state under the uniform random policy.
+        Compute Q(s,a) consistent with the selected reward convention (matches ValueIteration).
+        Returns array of shape (S, A).
         """
-        # Number of states and actions in the environment
-        num_states = self.mdp.num_states
-        num_actions = self.mdp.num_actions
-        
-        # Initialize state values to zero
-        state_values = np.zeros(num_states)
-        
-        # Initialize delta for convergence checking
-        delta = np.inf
-        discount_factor = self.mdp.get_discount_factor()
-        threshold = epsilon * (1 - discount_factor) / discount_factor
+        if state_values is None:
+            state_values = self.state_values
+            if np.allclose(state_values, 0.0):
+                state_values = self.run_policy_evaluation()
 
-        # Iterative process for policy evaluation
-        while delta > threshold:
-            # Copy the current state values to use in the next iteration
-            previous_state_values = state_values.copy()
-            delta = 0
-            
-            # Iterate over each state
-            for state in range(num_states):
-                #if state in self.mdp.terminal_states:
-                #    continue
-                # Calculate the expected value by averaging over all actions (uniform policy)
-                policy_action_value = sum(
-                    np.dot(self.mdp.transitions[state][action], previous_state_values) for action in range(num_actions)
-                )
-                
-                # Update the value for the current state
-                state_values[state] = self.mdp.compute_reward(state) + discount_factor * (1 / num_actions) * policy_action_value
-                
-                # Calculate the change in value (delta) to check convergence
-                delta = max(delta, abs(state_values[state] - previous_state_values[state]))
+        Q = np.zeros((self.S, self.A), dtype=float)
 
-        return state_values
+        if self.reward_convention == "entering":
+            target = self.r_enter + self.gamma * state_values  # (S,)
+            for s in range(self.S):
+                if self.clamp_terminal_values and s in self.terminals:
+                    Q[s, :] = 0.0
+                else:
+                    Q[s, :] = self.T[s] @ target
+        else:
+            for s in range(self.S):
+                if self.clamp_terminal_values and s in self.terminals:
+                    Q[s, :] = 0.0
+                else:
+                    Q[s, :] = self.r_on[s] + self.gamma * (self.T[s] @ state_values)
 
-
-class QIteration:
-    pass
-class Qlearning:
-    pass
+        return Q
