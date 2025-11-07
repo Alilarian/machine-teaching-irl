@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import linprog
+from utils.common_helper import calculate_expected_value_difference
 
 # ---------- small helpers ----------
 
@@ -423,3 +424,129 @@ def plot_halfspace_intersection_2d(
 
     ax.set_title(title)
     plt.show()
+
+
+# ============================================================
+#  6) computing regret - comparing regret
+# ============================================================
+
+import numpy as np
+
+def regrets_from_Q(envs, Q_list, *, tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
+    """
+    For each env, build a greedy (tie-aware) policy from Q(s,a) and compute regret:
+        Regret = V*(true) - V^pi(true)
+    Returns: np.ndarray of shape (num_envs,)
+    """
+    assert len(envs) == len(Q_list), "envs and Q_list must have same length."
+    regrets = []
+    for env, Q in zip(envs, Q_list):
+        pi = build_Pi_from_q(env, Q, tie_eps=tie_eps)  # uniform over argmax ties
+        r = calculate_expected_value_difference(
+            eval_policy=pi,
+            env=env,                                # env must contain the TRUE reward
+            epsilon=epsilon,
+            normalize_with_random_policy=normalize_with_random_policy,
+        )
+        regrets.append(float(r))
+    return np.asarray(regrets, dtype=float)
+
+def compare_regret_from_Q(envs, Q_scot_list, Q_rand_list, *,
+                          tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
+    """
+    Compute per-env and summary regrets for two Q-based methods.
+    Returns a dict with per-env arrays and summary stats.
+    """
+    reg_scot = regrets_from_Q(envs, Q_scot_list,
+                              tie_eps=tie_eps,
+                              epsilon=epsilon,
+                              normalize_with_random_policy=normalize_with_random_policy)
+    reg_rand = regrets_from_Q(envs, Q_rand_list,
+                              tie_eps=tie_eps,
+                              epsilon=epsilon,
+                              normalize_with_random_policy=normalize_with_random_policy)
+
+    def _stats(x):
+        return {
+            "mean": float(np.mean(x)),
+            "std": float(np.std(x)),
+            "median": float(np.median(x)),
+            "min": float(np.min(x)),
+            "max": float(np.max(x)),
+        }
+
+    return {
+        "per_env": {
+            "SCOT": reg_scot,
+            "RandomOpt": reg_rand,
+            "Delta": reg_scot - reg_rand,   # positive => SCOT has higher regret
+        },
+        "summary": {
+            "SCOT": _stats(reg_scot),
+            "RandomOpt": _stats(reg_rand),
+            "delta_mean": float(np.mean(reg_scot) - np.mean(reg_rand)),
+        },
+        "stacked_table": np.stack([reg_scot, reg_rand], axis=1),  # columns: [SCOT, RandomOpt]
+    }
+
+
+# ============================================================
+#  7) generating demonstration based on SCOT solution across envs
+# ============================================================
+
+def sample_optimal_sa_pairs(
+    envs, Q_list, n, *,
+    tie_eps=1e-10,
+    skip_terminals=True,
+    seed=None,
+    return_shape="flat",   # "flat": [(env_i, s, a)], "scot": [(env_i, [(s,a)])]
+):
+    rng = np.random.default_rng(seed)
+    assert len(envs) == len(Q_list), "envs and Q_list must have same length."
+
+    # Π from Q (already uniform over arg-max ties)
+    Pis = [build_Pi_from_q(env, q, tie_eps=tie_eps) for env, q in zip(envs, Q_list)]
+
+    # Eligible states per env (non-terminal if requested) with nonzero Π mass
+    eligible_states = []
+    for env, Pi in zip(envs, Pis):
+        S = env.get_num_states()
+        terms = set(getattr(env, "terminal_states", []) or [])
+        if skip_terminals:
+            mask = np.array([s not in terms for s in range(S)], dtype=bool)
+        else:
+            mask = np.ones(S, dtype=bool)
+        elig = np.flatnonzero(mask & (Pi.sum(axis=1) > 0))
+        eligible_states.append(elig)
+
+    env_pool = [i for i, es in enumerate(eligible_states) if es.size > 0]
+    if not env_pool:
+        raise RuntimeError("No eligible states found in any env (check terminals/Q).")
+
+    out = []
+    for _ in range(n):
+        i = int(rng.choice(env_pool))              # pick env uniformly
+        s = int(rng.choice(eligible_states[i]))    # pick state uniformly within env
+        p = Pis[i][s]
+        p = p / p.sum()                            # defensive normalize
+        a = int(rng.choice(len(p), p=p))           # sample among co-optimal actions
+
+        out.append((i, [(s, a)]) if return_shape == "scot" else (i, s, a))
+    return out
+
+
+def sample_optimal_sa_pairs_like_scot(
+    envs, Q_list, chosen_from_scot, *,
+    tie_eps=1e-10,
+    skip_terminals=True,
+    seed=None,
+    return_shape="scot",
+):
+    n = sum(len(traj) for _, traj in chosen_from_scot)
+    return sample_optimal_sa_pairs(
+        envs, Q_list, n,
+        tie_eps=tie_eps,
+        skip_terminals=skip_terminals,
+        seed=seed,
+        return_shape=return_shape,
+    )

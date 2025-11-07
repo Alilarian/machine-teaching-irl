@@ -93,76 +93,7 @@ def calculate_policy_accuracy(opt_pi, eval_pi):
     for i in range(len(opt_pi)):
         matches += opt_pi[i] == eval_pi[i]
     return matches / len(opt_pi)
-'''
-def compute_policy_loss_avar_bound(mcmc_samples, env, map_policy, random_normalization, alpha, delta):
 
-    policy_losses = []
-
-    # Step 1: Calculate policy loss for each MCMC sample
-    for sample in mcmc_samples:
-        learned_env = copy.deepcopy(env)  # Create a copy of the environment
-        learned_env.set_feature_weights(sample)   # Set the reward function to the current sample
-        
-        # Calculate the policy loss (Expected Value Difference)
-        policy_loss = calculate_expected_value_difference(
-            map_policy, learned_env, normalize_with_random_policy=random_normalization
-        )
-        policy_losses.append(policy_loss)
-
-    # Step 2: Sort the policy losses
-    policy_losses.sort()
-
-    # Step 3: Compute the VaR (Value at Risk) bound
-    N_burned = len(mcmc_samples)
-    k = math.ceil(N_burned * alpha + norm.ppf(1 - delta) * np.sqrt(N_burned * alpha * (1 - alpha)) - 0.5)
-    k = min(k, N_burned - 1)  # Ensure k doesn't exceed the number of samples
-
-    # Return the computed a-VaR bound
-    return policy_losses[k]
-'''
-
-
-# def compute_policy_loss_avar_bounds(mcmc_samples, env, map_policy, random_normalization, alphas, delta):
-#     """
-#     Computes the counterfactual policy losses and calculates the a-VaR (Value at Risk) bound for multiple alpha values.
-
-#     Args:
-#         mcmc_samples (list): List of MCMC sampled rewards from the BIRL process.
-#         env: The environment object.
-#         map_policy: The MAP (Maximum a Posteriori) policy from BIRL.
-#         random_normalization (bool): Whether to normalize using a random policy.
-#         alphas (list of float): List of confidence level parameters.
-#         delta (float): Risk level parameter.
-
-#     Returns:
-#         dict: A dictionary mapping each alpha to its computed a-VaR bound.
-#     """
-#     policy_losses = []
-
-#     # Step 1: Calculate policy loss for each MCMC sample
-#     for sample in mcmc_samples:
-#         learned_env = copy.deepcopy(env)  # Create a copy of the environment
-#         learned_env.set_feature_weights(sample)   # Set the reward function to the current sample
-        
-#         # Calculate the policy loss (Expected Value Difference)
-#         policy_loss = calculate_expected_value_difference(
-#             map_policy, learned_env, normalize_with_random_policy=random_normalization
-#         )
-#         policy_losses.append(policy_loss)
-
-#     # Step 2: Sort the policy losses
-#     policy_losses.sort()
-
-#     # Step 3: Compute the a-VaR bound for each alpha
-#     N_burned = len(mcmc_samples)
-#     avar_bounds = {}
-
-#     for alpha in alphas:
-#         k = math.ceil(N_burned * alpha + norm.ppf(1 - delta) * np.sqrt(N_burned * alpha * (1 - alpha)) - 0.5)
-#         k = min(k, N_burned - 1)  # Ensure k doesn't exceed the number of samples
-#         avar_bounds[alpha] = policy_losses[k]
-
-#     return avar_bounds
 
 ###################### Multi process
 
