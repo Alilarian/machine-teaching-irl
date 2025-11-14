@@ -169,8 +169,6 @@ def derive_constraints_from_q_ties(
 # 4) Removing redundant constraints
 # ============================================================
 
-
-
 def _normalize_dir(v, tol=1e-12):
     """Normalize v up to positive scaling so duplicates collapse to same key."""
     v = np.asarray(v, dtype=float)
@@ -253,7 +251,6 @@ def remove_redundant_constraints(halfspaces, epsilon=1e-4):
 
     return final
 
-
 # ============================================================
 # 5) Generating trajectories
 # ============================================================
@@ -304,8 +301,6 @@ def generate_candidates_from_q(
             trajectories.append(tau)
 
     return trajectories
-
-
 
 
 import numpy as np
