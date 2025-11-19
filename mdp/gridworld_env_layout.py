@@ -52,6 +52,8 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
                 color = self.grid_colors[r, c]
                 self.grid_features[r, c] = self.colors_to_features[color]
 
+
+
         # Gym spaces
         self.action_space = spaces.Discrete(4)
 
@@ -217,7 +219,12 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
     def get_cell_features(self, position):
         # Now returns numeric feature vector directly (matches SF expectation on env.grid_features)
         return self.grid_features[position[0], position[1]]
-
+    ##################################################
+    def get_state_feature(self, state):
+        row, col = divmod(state, self.columns)
+        cell_features = self.get_cell_features([row, col])
+        return cell_features
+    ###################################################
     def set_random_seed(self, seed):
         np.random.seed(seed)
         random.seed(seed)
