@@ -76,6 +76,7 @@ secrets/
 *~
 .DS_Store
 Thumbs.db
+outputs/
 
 # -------------------------
 # Editor/IDE files
@@ -127,7 +128,6 @@ pytest_cache/
 # -------------------------
 _site/
 docs/_build/
-
 
 
 
