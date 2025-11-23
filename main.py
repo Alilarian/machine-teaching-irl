@@ -29,6 +29,7 @@ from data_generation.generate_data import (
     simulate_human_estop_v2,
     simulate_improvement_feedback_v4,
 )
+from agent.q_learning_agent import ValueIteration
 from mdp.gridworld_env_layout import GridWorldMDPFromLayoutEnv
 from utils.machine_teaching_utils import remove_redundant_constraints
 from utils.mdp_generator import generate_random_gridworld_envs
@@ -61,29 +62,47 @@ def sample_trajectories(env, num_samples: int, max_horizon: int):
 
 
 def plot_estop(env, trajectories: Sequence, out_path: pathlib.Path, title: str):
-    constraints = []
+    """Generate estop constraints (notebook style)."""
+    # Track unique normalized vectors (notebook style)
+    normalized_unique_vectors = []
+    seen = set()
+
     for traj in trajectories:
-        estop_traj, stop_time = simulate_human_estop_v2(env, traj, beta=2.0, gamma=env.gamma)
+        estop_traj, stop_time = simulate_human_estop_v2(env, traj, beta=100, gamma=env.gamma)
         if stop_time is None:
             continue
-        prefix = estop_traj[: int(stop_time) + 1]
-        if not prefix:
-            continue
 
-        # diff = features up to stop - features of full trajectory
-        feat_prefix = traj_feature(env, prefix)
-        feat_full = traj_feature(env, estop_traj)
-        diff = feat_prefix - feat_full
+        # Compute features up to t (notebook style: explicit computation)
+        features_up_to_t = [env.get_state_feature(s) for s, _ in estop_traj[:int(stop_time) + 1]]
+        sum_feat_up_to_t = np.sum(features_up_to_t, axis=0)
+
+        # Compute features for full trajectory
+        full_traj_features = [env.get_state_feature(s) for s, _ in estop_traj]
+        traj_feat = np.sum(full_traj_features, axis=0)
+
+        # Difference
+        diff = sum_feat_up_to_t - traj_feat
+
+        # Normalize (L2 norm)
         norm = np.linalg.norm(diff)
         if norm == 0:
-            continue
-        constraints.append(diff / norm)
+            normalized = np.zeros_like(diff)
+        else:
+            normalized = diff / norm
 
-    constraints = process_constraints(constraints, normalize=False, true_reward=env.feature_weights)
-    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=2)
+        # Convert to tuple for hashing and check uniqueness (notebook style)
+        key = tuple(np.round(normalized, decimals=6))  # rounding to avoid float precision issues
+        if key not in seen:
+            seen.add(key)
+            normalized_unique_vectors.append(normalized)
+
+    # Remove redundant constraints (notebook style: epsilon=0.0001, no orientation toward true_reward)
+    constraints = remove_redundant_constraints(normalized_unique_vectors, epsilon=0.0001)
+    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=None)
 
 
 def plot_pairwise(env, trajectories: Sequence, num_samples: int, out_path: pathlib.Path, title: str):
+    """Generate pairwise comparison constraints (notebook style)."""
     max_pairs = max(0, len(trajectories) * (len(trajectories) - 1))
     num_to_draw = min(num_samples, max_pairs)
     comparisons = (
@@ -91,40 +110,194 @@ def plot_pairwise(env, trajectories: Sequence, num_samples: int, out_path: pathl
         if num_to_draw
         else []
     )
-    constraints = []
-    for t1, t2 in comparisons:
-        phi1 = traj_feature(env, t1)
-        phi2 = traj_feature(env, t2)
-        diff = phi1 - phi2
-        nrm = np.linalg.norm(diff)
-        if nrm == 0:
-            continue
-        constraints.append(diff / nrm)
-    constraints = process_constraints(constraints, true_reward=env.feature_weights)
-    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=2)
+
+    # Track unique normalized vectors (notebook style)
+    seen = set()
+    unique_vectors = []
+
+    for preferred, other in comparisons:
+        # Compute features explicitly (notebook style)
+        preferred_feats = [env.get_state_feature(s) for s, _ in preferred]
+        other_feats = [env.get_state_feature(s) for s, _ in other]
+
+        preferred_sum = np.sum(preferred_feats, axis=0)
+        other_sum = np.sum(other_feats, axis=0)
+
+        # Difference
+        diff = preferred_sum - other_sum
+        norm = np.linalg.norm(diff)
+
+        # Normalize
+        normalized = diff / norm if norm != 0 else np.zeros_like(diff)
+        key = tuple(np.round(normalized, decimals=6))  # use rounding for stable hashing
+
+        if key not in seen:
+            seen.add(key)
+            unique_vectors.append(normalized)
+
+    # Remove redundant constraints (notebook style: epsilon=0.0001, no orientation toward true_reward)
+    constraints = remove_redundant_constraints(unique_vectors, epsilon=0.0001)
+    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=None)
 
 
 def plot_correction(env, trajectories: Sequence, num_samples: int, out_path: pathlib.Path, title: str):
+    """Generate correction constraints using improvement feedback (notebook style)."""
     pairs = simulate_improvement_feedback_v4(env, trajectories, num_random_trajs=max(2, num_samples))
-    constraints = []
-    for improved, original in pairs:
-        phi_improved = traj_feature(env, improved)
-        phi_original = traj_feature(env, original)
-        diff = phi_improved - phi_original
-        nrm = np.linalg.norm(diff)
-        if nrm == 0:
-            continue
-        constraints.append(diff / nrm)
-    constraints = process_constraints(constraints, true_reward=env.feature_weights)
-    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=2)
+
+    # Track unique normalized vectors (notebook style)
+    normalized_unique_vectors = []
+    seen = set()
+
+    for improved, other in pairs:
+        # Compute features for improved trajectory
+        improved_traj = [env.get_state_feature(s) for s, _ in improved]
+        sum_feat_improved = np.sum(improved_traj, axis=0)
+
+        # Compute features for original trajectory
+        other_traj = [env.get_state_feature(s) for s, _ in other]
+        sum_feat_other = np.sum(other_traj, axis=0)
+
+        # Difference
+        diff = sum_feat_improved - sum_feat_other
+
+        # Normalize (L2 norm)
+        norm = np.linalg.norm(diff)
+        if norm == 0:
+            normalized = np.zeros_like(diff)
+        else:
+            normalized = diff / norm
+
+        # Convert to tuple for hashing and check uniqueness (notebook style)
+        key = tuple(np.round(normalized, decimals=6))  # rounding to avoid float precision issues
+        if key not in seen:
+            seen.add(key)
+            normalized_unique_vectors.append(normalized)
+
+    # Remove redundant constraints (notebook style: epsilon=0.0001, no orientation toward true_reward)
+    constraints = remove_redundant_constraints(normalized_unique_vectors, epsilon=0.0001)
+    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=None)
 
 
 def plot_demonstration(env, trajectories: Sequence, num_samples: int, out_path: pathlib.Path, title: str):
-    # Use only demonstration trajectories as constraints (notebook-style: positives only).
-    demos = list(trajectories[:num_samples])
-    constraints = [traj_feature(env, demo) for demo in demos if demo]
-    constraints = process_constraints(constraints, normalize=True, true_reward=env.feature_weights)
-    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=2)
+    """Generate demonstration constraints using optimal vs random trajectory feature differences (notebook style)."""
+    # Get Q-values for optimal trajectory generation
+    q_values = ValueIteration(env).get_q_values()
+
+    def get_intended_next_state(state, action):
+        """Get next state by sampling from transition probabilities."""
+        probs = env.transitions[state][action]
+        return np.random.choice(list(range(env.num_states)), p=probs)
+
+    def generate_optimal_trajectory(start_state):
+        """Generate an optimal trajectory starting from start_state."""
+        if start_state in env.terminal_states:
+            return [start_state], []
+
+        current_state = start_state
+        states = [current_state]
+        actions = []
+        terminal_states = set(env.terminal_states)
+        max_steps = 100
+
+        for _ in range(max_steps):
+            if current_state in terminal_states:
+                break
+            max_q = np.max(q_values[current_state])
+            epsilon = 1e-10
+            optimal_actions = [
+                a for a in range(env.get_num_actions())
+                if abs(q_values[current_state][a] - max_q) < epsilon
+            ]
+            if not optimal_actions:
+                break
+            action = np.random.choice(optimal_actions)
+            actions.append(action)
+            current_state = get_intended_next_state(current_state, action)
+            states.append(current_state)
+
+        return states, actions
+
+    def generate_random_trajectory_for_demo(start_state):
+        """Generate a random trajectory starting from start_state."""
+        current_state = start_state
+        states = [current_state]
+        actions = []
+        terminal_states = set(env.terminal_states)
+        max_steps = 100
+
+        for _ in range(max_steps):
+            if current_state in terminal_states:
+                break
+            action = random.randrange(env.get_num_actions())
+            actions.append(action)
+            current_state = get_intended_next_state(current_state, action)
+            states.append(current_state)
+
+        return states, actions
+
+    def compute_feature_sum(states):
+        """Compute sum of features for a trajectory."""
+        feature_sum = np.zeros(env.num_features)
+        for state in states:
+            feature_sum += env.get_state_feature(state)
+        return feature_sum
+
+    # Get non-terminal states
+    num_states = env.get_num_states()
+    terminal_states = env.terminal_states
+    non_terminal_states = [s for s in range(num_states) if s not in terminal_states]
+
+    # Generate optimal and random trajectories for each non-terminal state
+    num_optimal_trajectories = 5
+    num_random_trajectories = 5
+
+    optimal_trajectories = {}
+    random_trajectories = {}
+
+    for start_state in non_terminal_states:
+        optimal_trajectories[start_state] = [
+            generate_optimal_trajectory(start_state) for _ in range(num_optimal_trajectories)
+        ]
+        random_trajectories[start_state] = [
+            generate_random_trajectory_for_demo(start_state) for _ in range(num_random_trajectories)
+        ]
+
+    # Compute difference vectors: optimal_feature_sum - random_feature_sum
+    # Only keep differences where dot product with true reward > 0
+    diff_vectors = []
+    for start_state in non_terminal_states:
+        for opt_states, _ in optimal_trajectories[start_state]:
+            opt_feature_sum = compute_feature_sum(opt_states)
+            for rand_states, _ in random_trajectories[start_state]:
+                rand_feature_sum = compute_feature_sum(rand_states)
+                diff_vector = opt_feature_sum - rand_feature_sum
+                # Only keep if dot product with true reward > 0 (notebook style)
+                if np.dot(env.feature_weights, diff_vector) > 0:
+                    diff_vectors.append(diff_vector)
+
+    # Convert to numpy array for easier manipulation (notebook style)
+    all_difference_vectors = np.array(diff_vectors)
+
+    # Normalize the difference vectors using L2 norm (notebook style: vectorized)
+    norms = np.linalg.norm(all_difference_vectors, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1, norms)  # Avoid division by zero
+    normalized_difference_vectors = all_difference_vectors / norms
+
+    # Convert back to a list if needed
+    normalized_difference_vectors_list = normalized_difference_vectors.tolist()
+
+    # Convert normalized vectors to a list of tuples for use with set() (notebook style)
+    normalized_vectors_tuples = [tuple(vec) for vec in normalized_difference_vectors_list]
+
+    # Get unique normalized vectors using set() (notebook style)
+    unique_normalized_vectors_tuples = set(normalized_vectors_tuples)
+
+    # Convert back to a list of lists (or arrays) if needed
+    unique_normalized_vectors = [list(vec) for vec in unique_normalized_vectors_tuples]
+
+    # Remove redundant constraints (notebook style: epsilon=0.0001)
+    constraints = remove_redundant_constraints(unique_normalized_vectors, epsilon=0.0001)
+    plot_constraints(constraints, env.feature_weights, out_path, title, highlight=None)
 
 
 FEEDBACK_HANDLERS = {
@@ -178,13 +351,16 @@ def plot_constraints(
 ):
     """Plot halfspaces h^T w >= 0 in 2D, shade feasible region, mark true reward (notebook style)."""
     fig, ax = plt.subplots(figsize=(10, 10))
-    colors = ["#d81159", "#218380", "#ff7f0e", "#1f77b4", "#9467bd"]
+    colors = ["#d81159", "#218380"]
 
-    # dense grid for feasibility shading (use moderate resolution to avoid huge memory)
-    w1 = np.linspace(-1, 1, 1000)
-    w2 = np.linspace(-1, 1, 1000)
-    W1, W2 = np.meshgrid(w1, w2)
+    # High resolution grid for feasibility shading (notebook style: 8000x8000)
+    w1_grid = np.linspace(-1, 1, 8000)
+    w2_grid = np.linspace(-1, 1, 8000)
+    W1, W2 = np.meshgrid(w1_grid, w2_grid)
     feasible = np.ones_like(W1, dtype=bool)
+
+    # High resolution for line plotting (notebook style: 4000 points)
+    w1 = np.linspace(-1, 1, 4000)
 
     # deterministic order by angle for repeatability (notebook-esque)
     angles = []
@@ -195,10 +371,11 @@ def plot_constraints(
         else:
             angles.append(np.arctan2(h[1], h[0]))
     plot_order: list[int] = sorted(range(len(constraints)), key=lambda i: angles[i])
+    # Show all constraints (notebook style: binding_indices includes all)
     if highlight is not None:
         plot_order = plot_order[:highlight]
 
-    # plot highlighted constraints
+    # plot all constraints
     for idx in plot_order:
         h = np.asarray(constraints[idx], dtype=float)
         if h.shape[0] != 2:
@@ -274,7 +451,7 @@ def run(args: argparse.Namespace):
         env.set_random_seed(args.seed + env_idx)
         horizon = args.max_horizon or (env.num_states * 2)
         trajectories = sample_trajectories(env, args.num_samples, max_horizon=horizon)
-
+        print(envs[env_idx].layout)
         title = f"{args.feedback} env{env_idx + 1}"
         out_path = feedback_dir / f"{args.feedback}_env{env_idx + 1}.png"
         if args.feedback in {"pairwise", "correction", "demonstration"}:
