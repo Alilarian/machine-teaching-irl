@@ -55,8 +55,9 @@ def parse_reward_vector(raw: str) -> np.ndarray:
 # ----------------------------- feedback sampling -----------------------------
 
 def sample_trajectories(env, num_samples: int, max_horizon: int):
+    """Sample trajectories (notebook style: fixed_start=False)."""
     return [
-        generate_random_trajectory(env, max_horizon=max_horizon, fixed_start=True)
+        generate_random_trajectory(env, max_horizon=max_horizon, fixed_start=False)
         for _ in range(num_samples)
     ]
 
@@ -142,7 +143,8 @@ def plot_pairwise(env, trajectories: Sequence, num_samples: int, out_path: pathl
 
 def plot_correction(env, trajectories: Sequence, num_samples: int, out_path: pathlib.Path, title: str):
     """Generate correction constraints using improvement feedback (notebook style)."""
-    pairs = simulate_improvement_feedback_v4(env, trajectories, num_random_trajs=max(2, num_samples))
+    # Notebook uses num_random_trajs=5 (default), not based on num_samples
+    pairs = simulate_improvement_feedback_v4(env, trajectories, num_random_trajs=5)
 
     # Track unique normalized vectors (notebook style)
     normalized_unique_vectors = []
