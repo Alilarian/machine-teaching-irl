@@ -2,6 +2,9 @@ import numpy as np
 from scipy.optimize import linprog
 from utils.common_helper import calculate_expected_value_difference
 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
 # ---------- small helpers ----------
 
 
@@ -165,6 +168,9 @@ def derive_constraints_from_q_ties(
                 constraints.append((v, int(s), int(a_star), int(b)))
 
     return constraints
+
+
+
 # ============================================================
 # 4) Removing redundant constraints
 # ============================================================
@@ -252,60 +258,10 @@ def remove_redundant_constraints(halfspaces, epsilon=1e-4):
     return final
 
 # ============================================================
-# 5) Generating trajectories
+# 5) Generating trajectories ==> need to move to generate_feedback.py
 # ============================================================
 
-def generate_candidates_from_q(
-    env,
-    q_values,                      # shape (S, A)
-    num_rollouts_per_state=10,
-    max_steps=15,
-    tie_eps=1e-10,
-):
-    """
-    Generate trajectories as lists of (state, action) pairs by following a greedy
-    policy derived from q_values, sampling next states from env.transitions.
-    """
-    S = env.get_num_states()
-    A = env.get_num_actions()
-    terminals = set(env.terminal_states or [])
-    T = env.transitions   # already row-stochastic per your env
 
-    # Precompute greedy action sets (allowing ties within tie_eps)
-    opt_actions = [[] for _ in range(S)]
-    for s in range(S):
-        if s in terminals:
-            continue
-        row = q_values[s]
-        max_q = np.max(row)
-        opt_actions[s] = [a for a in range(A) if abs(row[a] - max_q) < tie_eps]
-
-    #print(opt_actions)
-    trajectories = []
-    for start_s in range(S):
-        if start_s in terminals or not opt_actions[start_s]:
-            continue  # skip terminal starts or states with no valid action
-
-        for _ in range(num_rollouts_per_state):
-            tau, s, steps = [], int(start_s), 0
-            print("starting state: ", s)
-            while steps < max_steps and s not in terminals:
-                acts = opt_actions[s]
-                if not acts:
-                    break
-                print("optimal actions: ", acts)
-                a = int(np.random.choice(acts))           # pick among optimal actions
-                tau.append((s, a))
-                s = int(np.random.choice(S, p=T[s, a]))   # sample next state from transitions
-                steps += 1
-            trajectories.append(tau)
-
-    return trajectories
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
 
 def _intersection_polygon_2d(V, box=1.0, tol=1e-12):
     """
@@ -425,8 +381,6 @@ def plot_halfspace_intersection_2d(
 #  6) computing regret - comparing regret
 # ============================================================
 
-import numpy as np
-
 def regrets_from_Q(envs, Q_list, *, tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
     """
     For each env, build a greedy (tie-aware) policy from Q(s,a) and compute regret:
@@ -486,7 +440,7 @@ def compare_regret_from_Q(envs, Q_scot_list, Q_rand_list, *,
 
 
 # ============================================================
-#  7) generating demonstration based on SCOT solution across envs
+#  7) generating demonstration based on SCOT solution across envs ==> need to move to generate_feedback.py
 # ============================================================
 
 def sample_optimal_sa_pairs(
@@ -528,7 +482,6 @@ def sample_optimal_sa_pairs(
 
         out.append((i, [(s, a)]) if return_shape == "scot" else (i, s, a))
     return out
-
 
 def sample_optimal_sa_pairs_like_scot(
     envs, Q_list, chosen_from_scot, *,

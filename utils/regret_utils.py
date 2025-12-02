@@ -1,0 +1,52 @@
+import numpy as np
+from utils.common_helper import calculate_expected_value_difference
+from utils.successor_features import build_Pi_from_q
+
+def regrets_from_Q(envs, Q_list, *, tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
+    regrets = []
+    for env, Q in zip(envs, Q_list):
+        pi = build_Pi_from_q(env, Q, tie_eps=tie_eps)
+        r = calculate_expected_value_difference(
+            eval_policy=pi,
+            env=env,
+            epsilon=epsilon,
+            normalize_with_random_policy=normalize_with_random_policy,
+        )
+        regrets.append(float(r))
+    return np.asarray(regrets, float)
+
+
+def compare_regret_from_Q(envs, Q_scot_list, Q_rand_list, *,
+                          tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
+
+    reg_scot = regrets_from_Q(envs, Q_scot_list,
+                              tie_eps=tie_eps,
+                              epsilon=epsilon,
+                              normalize_with_random_policy=normalize_with_random_policy)
+    reg_rand = regrets_from_Q(envs, Q_rand_list,
+                              tie_eps=tie_eps,
+                              epsilon=epsilon,
+                              normalize_with_random_policy=normalize_with_random_policy)
+
+    def _stats(x):
+        return {
+            "mean": float(np.mean(x)),
+            "std": float(np.std(x)),
+            "median": float(np.median(x)),
+            "min": float(np.min(x)),
+            "max": float(np.max(x)),
+        }
+
+    return {
+        "per_env": {
+            "SCOT": reg_scot,
+            "RandomOpt": reg_rand,
+            "Delta": reg_scot - reg_rand,
+        },
+        "summary": {
+            "SCOT": _stats(reg_scot),
+            "RandomOpt": _stats(reg_rand),
+            "delta_mean": float(np.mean(reg_scot) - np.mean(reg_rand)),
+        },
+        "stacked_table": np.stack([reg_scot, reg_rand], axis=1),
+    }
