@@ -1,6 +1,6 @@
 import numpy as np
-from utils.common_helper import calculate_expected_value_difference
-from utils.successor_features import build_Pi_from_q
+from .common_helper import calculate_expected_value_difference
+from .successor_features import build_Pi_from_q
 
 def regrets_from_Q(envs, Q_list, *, tie_eps=1e-10, epsilon=1e-4, normalize_with_random_policy=False):
     regrets = []

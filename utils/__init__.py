@@ -12,6 +12,7 @@ from .generate_feedback import (
     generate_valid_trajectories,
     generate_q_optimal_trajectories,
     generate_pairwise_comparisons,
+    sample_optimal_sa_pairs_like_scot,
     simulate_corrections,
     simulate_human_estop,
     simulate_all_feedback,
