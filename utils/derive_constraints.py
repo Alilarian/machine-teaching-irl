@@ -77,12 +77,12 @@
 # def constraints_from_pairwise(atom_data, env):
 #     """
 #     Pairwise preference constraint (preferred_traj, other_traj).
-#     Uses feature sums φ(s) from env.get_state_feature(s).
+#     Uses feature sums φ(s) from env.get_state_features(s).
 #     """
 #     preferred, other = atom_data
 
-#     preferred_feats = [env.get_state_feature(s) for s, _ in preferred]
-#     other_feats     = [env.get_state_feature(s) for s, _ in other]
+#     preferred_feats = [env.get_state_features(s) for s, _ in preferred]
+#     other_feats     = [env.get_state_features(s) for s, _ in other]
 
 #     preferred_sum = np.sum(preferred_feats, axis=0)
 #     other_sum     = np.sum(other_feats, axis=0)
@@ -104,8 +104,8 @@
 #     """
 #     traj, t_stop = atom_data
 
-#     feats_up_to_t = [env.get_state_feature(s) for s, _ in traj[:t_stop+1]]
-#     full_feats    = [env.get_state_feature(s) for s, _ in traj]
+#     feats_up_to_t = [env.get_state_features(s) for s, _ in traj[:t_stop+1]]
+#     full_feats    = [env.get_state_features(s) for s, _ in traj]
 
 #     sum_up_to_t = np.sum(feats_up_to_t, axis=0)
 #     full_sum    = np.sum(full_feats, axis=0)
@@ -126,8 +126,8 @@
 #     """
 #     improved, original = atom_data
 
-#     feats_imp = [env.get_state_feature(s) for s, _ in improved]
-#     feats_org = [env.get_state_feature(s) for s, _ in original]
+#     feats_imp = [env.get_state_features(s) for s, _ in improved]
+#     feats_org = [env.get_state_features(s) for s, _ in original]
 
 #     imp_sum = np.sum(feats_imp, axis=0)
 #     org_sum = np.sum(feats_org, axis=0)
@@ -341,8 +341,8 @@ def constraints_from_demo(traj, mu_sa, env=None, normalize=True, tol=1e-12):
 
 def constraints_from_pairwise(atom_data, env):
     preferred, other = atom_data
-    preferred_feats = np.sum([env.get_state_feature(s) for s, _ in preferred], axis=0)
-    other_feats = np.sum([env.get_state_feature(s) for s, _ in other], axis=0)
+    preferred_feats = np.sum([env.get_state_features(s) for s, _ in preferred], axis=0)
+    other_feats = np.sum([env.get_state_features(s) for s, _ in other], axis=0)
     diff = preferred_feats - other_feats
     norm = np.linalg.norm(diff)
     return [diff / norm if norm != 0 else np.zeros_like(diff)]
@@ -350,8 +350,8 @@ def constraints_from_pairwise(atom_data, env):
 
 def constraints_from_estop(atom_data, env):
     traj, t_stop = atom_data
-    feats_up_to_t = np.sum([env.get_state_feature(s) for s, _ in traj[:t_stop+1]], axis=0)
-    full_feats = np.sum([env.get_state_feature(s) for s, _ in traj], axis=0)
+    feats_up_to_t = np.sum([env.get_state_features(s) for s, _ in traj[:t_stop+1]], axis=0)
+    full_feats = np.sum([env.get_state_features(s) for s, _ in traj], axis=0)
     diff = feats_up_to_t - full_feats
     norm = np.linalg.norm(diff)
     return [diff / norm if norm != 0 else np.zeros_like(diff)]
@@ -359,8 +359,8 @@ def constraints_from_estop(atom_data, env):
 
 def constraints_from_improvement(atom_data, env):
     improved, original = atom_data
-    imp = np.sum([env.get_state_feature(s) for s, _ in improved], axis=0)
-    org = np.sum([env.get_state_feature(s) for s, _ in original], axis=0)
+    imp = np.sum([env.get_state_features(s) for s, _ in improved], axis=0)
+    org = np.sum([env.get_state_features(s) for s, _ in original], axis=0)
     diff = imp - org
     norm = np.linalg.norm(diff)
     return [diff / norm if norm != 0 else np.zeros_like(diff)]

@@ -214,6 +214,14 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
         f = self.get_cell_features([r, c])
         return float(np.dot(f, self.feature_weights))
 
+    def get_state_features(self, s):
+        """
+        Returns the feature vector φ(s) for a given integer state index.
+        Equivalent to get_cell_features((r,c)) but takes a flat state id.
+        """
+        r, c = divmod(int(s), self.columns)
+        return self.grid_features[r, c]
+
     def get_cell_features(self, position):
         # Now returns numeric feature vector directly (matches SF expectation on env.grid_features)
         return self.grid_features[position[0], position[1]]

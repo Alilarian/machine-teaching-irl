@@ -12,7 +12,7 @@ from .generate_feedback import (
     generate_valid_trajectories,
     generate_q_optimal_trajectories,
     generate_pairwise_comparisons,
-    sample_optimal_sa_pairs_like_scot,
+    #sample_optimal_sa_pairs_like_scot,
     simulate_corrections,
     simulate_human_estop,
     simulate_all_feedback,
@@ -20,17 +20,22 @@ from .generate_feedback import (
     pairwise_to_atoms,
     estops_to_atoms,
     corrections_to_atoms,
+
 )
 
 # Successor features
 from .successor_features import (
     build_Pi_from_q,
     compute_successor_features_iterative_from_q,
+
 )
 
 # Constraint extraction
 from .derive_constraints import (
     derive_constraints_from_q_ties,
+        compute_successor_features_family,
+        derive_constraints_from_q_family,
+        derive_constraints_from_atoms
     # you'll add derive_constraints_from_atoms soon
 )
 
