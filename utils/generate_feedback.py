@@ -383,17 +383,17 @@ def generate_candidate_atoms_for_scot(
 ## Need to think about this part. how to generate mpre fairly than random
 def sample_random_atoms_like_scot(candidates_per_env, chosen_scot, seed=None):
     """
-    Random baseline for SCOT using np.random only.
+    Random baseline for SCOT that returns:
+        [(env_idx, Atom), ...]
+    exactly matching SCOT format.
 
     Inputs:
-        candidates_per_env : list of lists of Atom objects
-            candidates_per_env[i] == list of Atoms from environment i
-        chosen_scot        : list of (env_idx, atom.data)
-            SCOT’s chosen result; used only to count selections per env
-    
+        candidates_per_env : list[list[Atom]]
+        chosen_scot        : list[(env_idx, Atom)] or list[(env_idx, atom.data)]
+                             (we only use env_idx counts)
+
     Returns:
-        random_chosen : list[(env_idx, atom.data)]
-            EXACT SAME STRUCTURE AS SCOT OUTPUT
+        random_chosen : list[(env_idx, Atom)]
     """
 
     if seed is not None:
@@ -403,26 +403,29 @@ def sample_random_atoms_like_scot(candidates_per_env, chosen_scot, seed=None):
 
     # --- 1. Count how many atoms SCOT selected per environment ---
     scot_counts = {}
-    for env_idx, data in chosen_scot:
+    for env_idx, atom_or_data in chosen_scot:
         scot_counts.setdefault(env_idx, 0)
         scot_counts[env_idx] += 1
 
-    # --- 2. Randomly sample same # atoms from each env pool ---
+    # --- 2. Randomly sample the same number of Atoms per env ---
     for env_idx, count in scot_counts.items():
         pool = candidates_per_env[env_idx]
         if len(pool) == 0:
             continue
 
+        # sample indices
         if len(pool) >= count:
-            indices = np.random.choice(len(pool), size=count, replace=False)
+            idxs = np.random.choice(len(pool), size=count, replace=False)
         else:
-            indices = np.random.choice(len(pool), size=count, replace=True)
+            idxs = np.random.choice(len(pool), size=count, replace=True)
 
-        for idx in indices:
+        # full Atom objects — NOT atom.data
+        for idx in idxs:
             atom = pool[idx]
-            out.append((env_idx, atom.data))  # SCOT-compatible format
+            out.append((env_idx, atom))
 
     return out
+
 
 
 

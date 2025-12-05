@@ -51,8 +51,8 @@ from .lp_redundancy import (
 
 # Regret utilities
 from .regret_utils import (
-    regrets_from_Q,
-    compare_regret_from_Q,
+    compute_Q_from_weights_with_VI,
+    regrets_from_Q
 )
 
 # Plotting utilities

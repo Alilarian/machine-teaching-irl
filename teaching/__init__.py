@@ -1,0 +1,1 @@
+from .scot import scot_greedy_family_atoms_tracked
