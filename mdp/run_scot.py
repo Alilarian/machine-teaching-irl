@@ -25,6 +25,7 @@ from utils import (
     sample_random_atoms_like_scot,
     compute_Q_from_weights_with_VI,
     remove_redundant_constraints,
+    parallel_value_iteration
 )
 from teaching import scot_greedy_family_atoms_tracked
 from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
@@ -340,15 +341,14 @@ def run_universal_experiment(
     # ---------------------------------------------------
     # 3. Value Iteration
     # ---------------------------------------------------
-    log("[3/12] Running Value Iteration on all MDPs...")
-    t0 = time.time()
-    vis = [ValueIteration(e) for e in envs]
-    for i, v in enumerate(vis):
-        v.run_value_iteration(epsilon=1e-10)
-        if (i + 1) % max(1, n_envs // 5) == 0:
-            log(f"       VI progress: {i+1}/{n_envs} MDPs solved...")
-    Q_list = [v.get_q_values() for v in vis]
-    log(f"       ✔ VI completed in {time.time() - t0:.2f}s\n")
+
+    # n_jobs=None → use all CPU cores
+    Q_list = parallel_value_iteration(
+        envs,
+        epsilon=1e-10,
+        n_jobs=None,
+        log=log
+    )
 
     # ---------------------------------------------------
     # 4. Successor features
