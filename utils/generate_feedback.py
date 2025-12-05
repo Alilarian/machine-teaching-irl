@@ -294,7 +294,7 @@ def generate_candidate_atoms_for_scot(
     # ---- Q-demos ----
     use_q_demos=True,
     num_q_rollouts_per_state=10,
-    q_demo_max_steps=15,
+    q_demo_max_steps=1,
     tie_eps=1e-10,
 
     # ---- Pairwise ----
@@ -308,11 +308,11 @@ def generate_candidate_atoms_for_scot(
     # ---- Improvement ----
     use_improvement=False,
     n_improvements=10,
-    n_random_for_improvement=25,
+    n_random_for_improvement=300,
 
     # ---- Base traj parameters (for pairwise/estop/improvement) ----
     base_min_length=3,
-    base_max_horizon=25,
+    base_max_horizon=100,
 ):
     """
     Generate candidate ATOMS for SCOT.
@@ -425,26 +425,6 @@ def sample_random_atoms_like_scot(candidates_per_env, chosen_scot, seed=None):
             out.append((env_idx, atom))
 
     return out
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
