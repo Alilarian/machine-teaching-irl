@@ -1,7 +1,5 @@
 import numpy as np
 
-import numpy as np
-
 class ValueIteration:
     """
     Value Iteration for a tabular MDP with flexible reward convention.

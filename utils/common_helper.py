@@ -18,6 +18,53 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 from agent.q_learning_agent import ValueIteration, PolicyEvaluation
 
+
+from concurrent.futures import ProcessPoolExecutor
+import time
+
+
+from concurrent.futures import ProcessPoolExecutor
+import time
+
+
+def _vi_worker(args):
+    """Worker receives a single picklable tuple."""
+    env, epsilon = args
+    v = ValueIteration(env)
+    v.run_value_iteration(epsilon=epsilon)
+    return v.get_q_values()
+
+
+def parallel_value_iteration(
+    envs,
+    *,
+    epsilon=1e-10,
+    n_jobs=None,
+    log=print
+):
+    n_envs = len(envs)
+    log("[3/12] Running Value Iteration on all MDPs... (parallel)")
+    t0 = time.time()
+
+    worker_args = [(env, epsilon) for env in envs]
+
+    Q_list = []
+    with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+
+        # No lambda, no closure — fully picklable
+        for i, Q in enumerate(executor.map(_vi_worker, worker_args)):
+            Q_list.append(Q)
+
+            # progress
+            if (i + 1) % max(1, n_envs // 5) == 0:
+                log(f"       VI progress: {i+1}/{n_envs} MDPs solved...")
+
+    log(f"       ✔ VI completed in {time.time() - t0:.2f}s\n")
+    return Q_list
+
+
+
+
 def calculate_percentage_optimal_actions(policy, env, epsilon=0.0001):
     """
     Calculate the percentage of actions in the given policy that are optimal under the environment's Q-values.

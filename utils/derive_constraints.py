@@ -242,18 +242,42 @@
 import numpy as np
 from .successor_features import compute_successor_features_iterative_from_q
 from .lp_redundancy import remove_redundant_constraints
-
+from concurrent.futures import ProcessPoolExecutor
+import itertools
 
 # ============================================================
 # 1. Successor Features Family Wrapper
 # ============================================================
 
-def compute_successor_features_family(envs, Q_list, **kw):
-    SFs = []
-    for env, q in zip(envs, Q_list):
-        mu_sa, mu_s, Phi, P_pi = compute_successor_features_iterative_from_q(env, q, **kw)
-        SFs.append((mu_sa, mu_s, Phi, P_pi))
-    return SFs
+# def compute_successor_features_family(envs, Q_list, **kw):
+#     SFs = []
+#     for env, q in zip(envs, Q_list):
+#         mu_sa, mu_s, Phi, P_pi = compute_successor_features_iterative_from_q(env, q, **kw)
+#         SFs.append((mu_sa, mu_s, Phi, P_pi))
+#     return SFs
+def _sf_worker(args):
+    env, q, kw = args
+    return compute_successor_features_iterative_from_q(env, q, **kw)
+
+def compute_successor_features_family(
+    envs,
+    Q_list,
+    *,
+    n_jobs=None,
+    **kw,
+):
+    """
+    Parallel version of compute_successor_features_family.
+    Uses process pool — safe & fast for CPU-heavy SF computations.
+    """
+
+    worker_args = [(env, q, kw) for env, q in zip(envs, Q_list)]
+
+    with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+        # results = [(mu_sa, mu_s, Phi, P_pi), ...]
+        results = list(executor.map(_sf_worker, worker_args))
+
+    return results
 
 
 # ============================================================

@@ -178,11 +178,50 @@ def regrets_from_Q(
 from concurrent.futures import ProcessPoolExecutor
 
 
+# def _random_trial_worker(args):
+#     sd, envs, make_random_chosen, birl_kwargs, vi_epsilon, regret_epsilon = args
+
+#     chosen_rand = make_random_chosen(sd)
+
+#     _, _, Q_rand_map, Q_rand_mean, _ = birl_atomic_to_Q_lists(
+#         envs,
+#         chosen_rand,
+#         vi_epsilon=vi_epsilon,
+#         **birl_kwargs,
+#     )
+
+#     reg_map = regrets_from_Q(envs, Q_rand_map, epsilon=regret_epsilon)
+#     reg_mean = regrets_from_Q(envs, Q_rand_mean, epsilon=regret_epsilon)
+
+#     return reg_map, reg_mean
+def make_random_chosen(sd, candidates_per_env, chosen_scot):
+    """Picklable version of random atom generator."""
+    return sample_random_atoms_like_scot(
+        candidates_per_env=candidates_per_env,
+        chosen_scot=chosen_scot,
+        seed=sd,
+    )
+
 def _random_trial_worker(args):
-    sd, envs, make_random_chosen, birl_kwargs, vi_epsilon, regret_epsilon = args
+    (
+        sd,
+        envs,
+        make_random_args,     # (candidates_per_env, chosen_scot_nonflat)
+        birl_kwargs,
+        vi_epsilon,
+        regret_epsilon,
+    ) = args
 
-    chosen_rand = make_random_chosen(sd)
+    candidates_per_env, chosen_scot_nonflat = make_random_args
 
+    # IMPORTANT: generate random atoms inside the worker, not outside
+    chosen_rand = make_random_chosen(
+        sd,
+        candidates_per_env=candidates_per_env,
+        chosen_scot=chosen_scot_nonflat,
+    )
+
+    # Compute Qs from BIRL
     _, _, Q_rand_map, Q_rand_mean, _ = birl_atomic_to_Q_lists(
         envs,
         chosen_rand,
@@ -190,6 +229,7 @@ def _random_trial_worker(args):
         **birl_kwargs,
     )
 
+    # Compute regrets
     reg_map = regrets_from_Q(envs, Q_rand_map, epsilon=regret_epsilon)
     reg_mean = regrets_from_Q(envs, Q_rand_mean, epsilon=regret_epsilon)
 
@@ -199,7 +239,7 @@ def _random_trial_worker(args):
 def run_scot_vs_random_Q_regret_atomic(
     envs,
     chosen_scot,
-    make_random_chosen,
+    make_random_args,      # (candidates_per_env, chosen_scot_nonflat)
     *,
     n_random_trials=10,
     birl_kwargs=None,
@@ -209,7 +249,9 @@ def run_scot_vs_random_Q_regret_atomic(
 ):
     birl_kwargs = birl_kwargs or {}
 
-    # ---------------- SCOT (sequential) ----------------
+    # --------------------------------------
+    # SCOT baseline (sequential)
+    # --------------------------------------
     w_scot_map, w_scot_mean, Q_scot_map, Q_scot_mean, birl_scot = \
         birl_atomic_to_Q_lists(
             envs,
@@ -221,16 +263,24 @@ def run_scot_vs_random_Q_regret_atomic(
     reg_scot_map  = regrets_from_Q(envs, Q_scot_map,  epsilon=regret_epsilon)
     reg_scot_mean = regrets_from_Q(envs, Q_scot_mean, epsilon=regret_epsilon)
 
-    # ---------------- RANDOM (parallel) ----------------
+    # --------------------------------------
+    # RANDOM baseline (parallel)
+    # --------------------------------------
     worker_args = [
-        (sd, envs, make_random_chosen, birl_kwargs, vi_epsilon, regret_epsilon)
+        (
+            sd,
+            envs,
+            make_random_args,   # (candidates_per_env, chosen_scot_nonflat)
+            birl_kwargs,
+            vi_epsilon,
+            regret_epsilon,
+        )
         for sd in range(n_random_trials)
     ]
 
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:
         results = list(executor.map(_random_trial_worker, worker_args))
 
-    # unpack results
     rand_map_regs  = [res[0] for res in results]
     rand_mean_regs = [res[1] for res in results]
 
@@ -247,6 +297,7 @@ def run_scot_vs_random_Q_regret_atomic(
             "SCOT_accept_rate": float(birl_scot.accept_rate),
         },
     }
+
 
 # =============================================================================
 # 5. Main experiment
@@ -535,31 +586,25 @@ def run_universal_experiment(
     # ---------------------------------------------------
     # 10. Regret evaluation
     # ---------------------------------------------------
+
     log("[10/12] Computing regret (SCOT vs Random)...")
     t0 = time.time()
-    make_random = lambda sd: sample_random_atoms_like_scot(
-        candidates_per_env,
-        chosen_scot,
-        seed=sd,
-    )
+
+    # Safe: we pass only data, NOT a function
+    make_random_args = (candidates_per_env, chosen_scot)
 
     results = run_scot_vs_random_Q_regret_atomic(
         envs,
         chosen_scot_flat,
-        make_random,
+        make_random_args,        # picklable data tuple
         n_random_trials=random_trials,
         birl_kwargs=birl_kwargs,
     )
 
     log(f"       ✔ Regret computed in {time.time() - t0:.2f}s")
-    log(
-        f"       SCOT mean regret: "
-        f"{np.mean(results['SCOT']['regret_map']):.4f}"
-    )
-    log(
-        "       Random mean regret: "
-        f"{np.mean(results['RANDOM']['regret_map']):.4f}\n"
-    )
+    log(f"       SCOT mean regret: {np.mean(results['SCOT']['regret_map']):.4f}")
+    log(f"       Random mean regret: {np.mean(results['RANDOM']['regret_map']):.4f}\n")
+
 
     # ---------------------------------------------------
     # 11. Save raw constraint logs
