@@ -16,7 +16,7 @@ from scipy.spatial.distance import cdist
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 sys.path.append(parent)
-from agent.q_learning_agent import ValueIteration, PolicyEvaluation
+from agent.q_learning_agent_ import ValueIteration, PolicyEvaluation
 
 
 from concurrent.futures import ProcessPoolExecutor

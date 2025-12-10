@@ -13,7 +13,7 @@ module_path = os.path.abspath(os.path.join(".."))
 if module_path not in sys.path:
     sys.path.append(module_path)
 
-from agent.q_learning_agent import ValueIteration
+from agent.q_learning_agent_ import ValueIteration
 from utils.common_helper import calculate_expected_value_difference
 from utils.successor_features import build_Pi_from_q
 from utils import (
@@ -678,7 +678,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mdp_size",
         type=int,
-        default=5,
+        default=10,
         help="Gridworld size (rows = cols = mdp_size).",
     )
     parser.add_argument(

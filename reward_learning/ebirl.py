@@ -1,4 +1,4 @@
-from agent.q_learning_agent import ValueIteration
+from agent.q_learning_agent_ import ValueIteration
 import numpy as np
 import copy
 from scipy.special import logsumexp
