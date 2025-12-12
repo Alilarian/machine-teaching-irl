@@ -80,31 +80,6 @@ class MultiEnvAtomicBIRL:
 
         self.atoms_per_env = atoms_per_env
 
-        # ============================================================
-        # Precompute Successor Features for each environment
-        # ============================================================
-        from utils.successor_features import compute_successor_features_iterative_from_q
-
-        self.mu_sa_per_env = []
-
-        for env in self.envs:
-            # Compute SFs using a random reward vector or zero vector
-            # (policy doesn't matter — SFs encode discounted dynamics)
-            dummy_w = np.zeros_like(env.feature_weights)
-            env.set_feature_weights(dummy_w)
-
-            # Perform a single VI to obtain policy π under dummy_w
-            vi = ValueIteration(env)
-            vi.run_value_iteration(epsilon=self.epsilon)
-            Q = vi.get_q_values()
-
-            # Compute SFs under the induced deterministic π
-            mu_sa, mu_s, Phi, P_pi = compute_successor_features_iterative_from_q(
-                env, Q
-            )
-            self.mu_sa_per_env.append(mu_sa)
-
-
         # Feature dimension from first env
         self.num_mcmc_dims = len(self.envs[0].feature_weights)
 
@@ -150,14 +125,12 @@ class MultiEnvAtomicBIRL:
 
             # Compute Q only if needed
             Q = None
-            # if self.needs_q[env_idx]:
-            #     vi = ValueIteration(env)
-            #     vi.run_value_iteration(epsilon=self.epsilon)
-            #     Q = vi.get_q_values()
             if self.needs_q[env_idx]:
-                # SUCCESSOR FEATURE Q-VALUE COMPUTATION
-                mu_sa = self.mu_sa_per_env[env_idx]      # (S,A,d)
-                Q = np.tensordot(mu_sa, w, axes=(2,0))   # → shape (S,A)
+                vi = ValueIteration(env, reward_convention="on")
+                vi.run_value_iteration(epsilon=self.epsilon)
+                Q = vi.get_q_values()
+            # ============================================================
+            
 
 
             # Evaluate each atom
@@ -272,6 +245,54 @@ class MultiEnvAtomicBIRL:
         n = np.linalg.norm(v)
         return v / n if n > 0 else v
 
+    # def run_mcmc(self, samples, stepsize, normalize=True, adaptive=False, seed=None):
+    #     if seed is not None:
+    #         np.random.seed(seed)
+
+    #     T = int(samples)
+    #     stdev = float(stepsize)
+    #     accept_cnt = 0
+
+    #     # Target acceptance rate
+    #     target = 0.4
+    #     horizon = max(1, T // 100)
+    #     lr = 0.05
+    #     hist = []
+
+    #     # Allocate
+    #     self.chain = np.zeros((T, self.num_mcmc_dims))
+    #     self.likelihoods = np.zeros(T)
+
+    #     # Initial solution
+    #     cur = self.initial_solution()
+    #     cur_ll = self.calc_ll(cur)
+    #     map_ll, map_sol = cur_ll, cur
+
+    #     # MCMC loop
+    #     for t in range(T):
+    #         prop = self.generate_proposal(cur, stdev, normalize)
+    #         prop_ll = self.calc_ll(prop)
+
+    #         accept = (prop_ll > cur_ll) or (np.random.rand() < np.exp(prop_ll - cur_ll))
+
+    #         if accept:
+    #             cur, cur_ll = prop, prop_ll
+    #             accept_cnt += 1
+    #             if cur_ll > map_ll:
+    #                 map_ll, map_sol = cur_ll, cur
+
+    #         self.chain[t] = cur
+    #         self.likelihoods[t] = cur_ll
+
+    #         # Adaptive tuning
+    #         if adaptive:
+    #             hist.append(1 if accept else 0)
+    #             if (t + 1) % horizon == 0:
+    #                 acc_rate = np.mean(hist[-horizon:])
+    #                 stdev = max(1e-5, stdev + lr * (acc_rate - target) / np.sqrt(t + 1))
+
+    #     self.accept_rate = accept_cnt / T
+    #     self.map_sol = map_sol
     def run_mcmc(self, samples, stepsize, normalize=True, adaptive=False, seed=None):
         if seed is not None:
             np.random.seed(seed)

@@ -57,10 +57,10 @@ def make_demo_atoms(env, Q):
 
 def test_reward_recovery(
     mdp_size=8,
-    feature_dim=4,
-    seed=10,
-    mcmc_samples=100000,
-    stepsize=2,
+    feature_dim=5,
+    seed=10200,
+    mcmc_samples=4000,
+    stepsize=0.5,
     beta=10.0,
 ):
 
@@ -110,7 +110,7 @@ def test_reward_recovery(
     # --------------------------------------------------
     # 3. Compute optimal policies & Q*
     # --------------------------------------------------
-    VI = ValueIteration(env, reward_convention="entering")
+    VI = ValueIteration(env, reward_convention="on")
     V_opt = VI.run_value_iteration(epsilon=1e-12)
     Q_opt = VI.get_q_values(V_opt)
 
