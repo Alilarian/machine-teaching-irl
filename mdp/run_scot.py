@@ -4,11 +4,11 @@ import os
 import sys
 import time
 import numpy as np
+from concurrent.futures import ProcessPoolExecutor
 
 # ---------------------------------------------------------------------
 # 0. Path & imports
 # ---------------------------------------------------------------------
-
 module_path = os.path.abspath(os.path.join(".."))
 if module_path not in sys.path:
     sys.path.append(module_path)
@@ -25,16 +25,16 @@ from utils import (
     sample_random_atoms_like_scot,
     compute_Q_from_weights_with_VI,
     remove_redundant_constraints,
-    parallel_value_iteration
+    parallel_value_iteration,
 )
 from teaching import scot_greedy_family_atoms_tracked
 from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
 
+
 # =============================================================================
 # 1. Ground-truth reward generator
 # =============================================================================
-
 def generate_w_true(d, mode="random_signed", seed=None):
     rng = np.random.default_rng(seed)
 
@@ -57,12 +57,10 @@ def generate_w_true(d, mode="random_signed", seed=None):
 
     raise ValueError(f"Unknown W_TRUE generation mode: {mode}")
 
+
 # =============================================================================
 # 2. BIRL Wrapper
 # =============================================================================
-from concurrent.futures import ProcessPoolExecutor
-import functools
-
 def _compute_Q_wrapper(args):
     """Helper for parallel execution: (env, w, vi_epsilon)."""
     env, w, vi_eps = args
@@ -82,7 +80,7 @@ def birl_atomic_to_Q_lists(
     burn_frac=0.2,
     skip_rate=10,
     vi_epsilon=1e-6,
-    n_jobs=None,              # NEW: number of parallel workers
+    n_jobs=None,  # number of parallel workers for Q computation
 ):
     """
     Run MultiEnvAtomicBIRL → return MAP/mean Q-functions.
@@ -90,7 +88,7 @@ def birl_atomic_to_Q_lists(
     """
 
     # ---------------------------
-    # Run BIRL (this is sequential)
+    # Run BIRL (sequential)
     # ---------------------------
     birl = MultiEnvAtomicBIRL(
         envs,
@@ -117,12 +115,11 @@ def birl_atomic_to_Q_lists(
     )
 
     # ---------------------------
-    # Parallel execution
+    # Parallel Q computation
     # ---------------------------
     worker_args_map = [(env, w_map, vi_epsilon) for env in envs]
     worker_args_mean = [(env, w_mean, vi_epsilon) for env in envs]
 
-    # If n_jobs=None → uses # of CPU cores
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:
         Q_map_list = list(executor.map(_compute_Q_wrapper, worker_args_map))
         Q_mean_list = list(executor.map(_compute_Q_wrapper, worker_args_mean))
@@ -133,7 +130,6 @@ def birl_atomic_to_Q_lists(
 # =============================================================================
 # 3. Regret Utilities
 # =============================================================================
-
 def _compute_regret_wrapper(args):
     env, Q, tie_eps, epsilon, normalize = args
     pi = build_Pi_from_q(env, Q, tie_eps=tie_eps)
@@ -156,7 +152,6 @@ def regrets_from_Q(
     n_jobs=None,
 ):
     """Parallel regret computation for each env."""
-    
     worker_args = [
         (env, Q, tie_eps, epsilon, normalize_with_random_policy)
         for env, Q in zip(envs, Q_list)
@@ -168,32 +163,9 @@ def regrets_from_Q(
     return np.array(regrets)
 
 
-
 # =============================================================================
-# 4. Combined SCOT vs Random regret analyzer
+# 4. Random baseline helpers (picklable)
 # =============================================================================
-
-
-
-from concurrent.futures import ProcessPoolExecutor
-
-
-# def _random_trial_worker(args):
-#     sd, envs, make_random_chosen, birl_kwargs, vi_epsilon, regret_epsilon = args
-
-#     chosen_rand = make_random_chosen(sd)
-
-#     _, _, Q_rand_map, Q_rand_mean, _ = birl_atomic_to_Q_lists(
-#         envs,
-#         chosen_rand,
-#         vi_epsilon=vi_epsilon,
-#         **birl_kwargs,
-#     )
-
-#     reg_map = regrets_from_Q(envs, Q_rand_map, epsilon=regret_epsilon)
-#     reg_mean = regrets_from_Q(envs, Q_rand_mean, epsilon=regret_epsilon)
-
-#     return reg_map, reg_mean
 def make_random_chosen(sd, candidates_per_env, chosen_scot):
     """Picklable version of random atom generator."""
     return sample_random_atoms_like_scot(
@@ -202,11 +174,12 @@ def make_random_chosen(sd, candidates_per_env, chosen_scot):
         seed=sd,
     )
 
+
 def _random_trial_worker(args):
     (
         sd,
         envs,
-        make_random_args,     # (candidates_per_env, chosen_scot_nonflat)
+        make_random_args,  # (candidates_per_env, chosen_scot_nonflat)
         birl_kwargs,
         vi_epsilon,
         regret_epsilon,
@@ -214,14 +187,14 @@ def _random_trial_worker(args):
 
     candidates_per_env, chosen_scot_nonflat = make_random_args
 
-    # IMPORTANT: generate random atoms inside the worker, not outside
+    # Generate random atoms inside worker
     chosen_rand = make_random_chosen(
         sd,
         candidates_per_env=candidates_per_env,
         chosen_scot=chosen_scot_nonflat,
     )
 
-    # Compute Qs from BIRL
+    # BIRL → Qs
     _, _, Q_rand_map, Q_rand_mean, _ = birl_atomic_to_Q_lists(
         envs,
         chosen_rand,
@@ -229,48 +202,81 @@ def _random_trial_worker(args):
         **birl_kwargs,
     )
 
-    # Compute regrets
+    # Regrets
     reg_map = regrets_from_Q(envs, Q_rand_map, epsilon=regret_epsilon)
     reg_mean = regrets_from_Q(envs, Q_rand_mean, epsilon=regret_epsilon)
 
     return reg_map, reg_mean
 
 
-def run_scot_vs_random_Q_regret_atomic(
+# =============================================================================
+# 5. Option B: Split evaluation into SCOT-only and Random-only
+# =============================================================================
+def eval_scot_regret_atomic(
     envs,
-    chosen_scot,
-    make_random_args,      # (candidates_per_env, chosen_scot_nonflat)
+    chosen_scot_flat,
+    *,
+    birl_kwargs=None,
+    vi_epsilon=1e-6,
+    regret_epsilon=1e-4,
+    n_jobs=None,
+):
+    """
+    Evaluate SCOT only:
+      - run BIRL on chosen_scot_flat
+      - compute regrets for MAP/mean policies per env
+    """
+    birl_kwargs = birl_kwargs or {}
+
+    w_scot_map, w_scot_mean, Q_scot_map, Q_scot_mean, birl_scot = birl_atomic_to_Q_lists(
+        envs,
+        chosen_scot_flat,
+        vi_epsilon=vi_epsilon,
+        **birl_kwargs,
+    )
+
+    reg_scot_map = regrets_from_Q(envs, Q_scot_map, epsilon=regret_epsilon, n_jobs=n_jobs)
+    reg_scot_mean = regrets_from_Q(envs, Q_scot_mean, epsilon=regret_epsilon, n_jobs=n_jobs)
+
+    return {
+        "SCOT": {
+            "regret_map": reg_scot_map.tolist(),
+            "regret_mean": reg_scot_mean.tolist(),
+        },
+        "BIRL": {
+            "SCOT_accept_rate": float(birl_scot.accept_rate),
+            # (Optional: if you ever want to log weights)
+            # "w_scot_map": w_scot_map.tolist(),
+            # "w_scot_mean": w_scot_mean.tolist(),
+        },
+    }
+
+
+def eval_random_regret_atomic(
+    envs,
+    make_random_args,  # (candidates_per_env, chosen_scot_nonflat)
     *,
     n_random_trials=10,
     birl_kwargs=None,
     vi_epsilon=1e-6,
     regret_epsilon=1e-4,
-    n_jobs=None
+    n_jobs=None,
 ):
+    """
+    Evaluate Random baseline only:
+      - runs n_random_trials trials in parallel (each trial: sample random atoms, run BIRL, compute regrets)
+      - returns stacked regrets: shape (n_trials, n_envs)
+    """
     birl_kwargs = birl_kwargs or {}
 
-    # --------------------------------------
-    # SCOT baseline (sequential)
-    # --------------------------------------
-    w_scot_map, w_scot_mean, Q_scot_map, Q_scot_mean, birl_scot = \
-        birl_atomic_to_Q_lists(
-            envs,
-            chosen_scot,
-            vi_epsilon=vi_epsilon,
-            **birl_kwargs,
-        )
+    if n_random_trials <= 0:
+        raise ValueError("eval_random_regret_atomic called with n_random_trials <= 0")
 
-    reg_scot_map  = regrets_from_Q(envs, Q_scot_map,  epsilon=regret_epsilon)
-    reg_scot_mean = regrets_from_Q(envs, Q_scot_mean, epsilon=regret_epsilon)
-
-    # --------------------------------------
-    # RANDOM baseline (parallel)
-    # --------------------------------------
     worker_args = [
         (
             sd,
             envs,
-            make_random_args,   # (candidates_per_env, chosen_scot_nonflat)
+            make_random_args,
             birl_kwargs,
             vi_epsilon,
             regret_epsilon,
@@ -281,28 +287,64 @@ def run_scot_vs_random_Q_regret_atomic(
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:
         results = list(executor.map(_random_trial_worker, worker_args))
 
-    rand_map_regs  = [res[0] for res in results]
-    rand_mean_regs = [res[1] for res in results]
+    rand_map_regs = [res[0] for res in results]   # each: (n_envs,)
+    rand_mean_regs = [res[1] for res in results]  # each: (n_envs,)
 
     return {
-        "SCOT": {
-            "regret_map":  reg_scot_map.tolist(),
-            "regret_mean": reg_scot_mean.tolist(),
-        },
         "RANDOM": {
-            "regret_map":  np.vstack(rand_map_regs).tolist(),
+            "regret_map": np.vstack(rand_map_regs).tolist(),
             "regret_mean": np.vstack(rand_mean_regs).tolist(),
-        },
-        "BIRL": {
-            "SCOT_accept_rate": float(birl_scot.accept_rate),
-        },
+        }
     }
 
 
-# =============================================================================
-# 5. Main experiment
-# =============================================================================
+def run_regret_evaluation_atomic(
+    envs,
+    chosen_scot_flat,
+    *,
+    make_random_args=None,
+    random_trials=10,
+    birl_kwargs=None,
+    vi_epsilon=1e-6,
+    regret_epsilon=1e-4,
+    n_jobs=None,
+):
+    """
+    Orchestrator:
+      - always computes SCOT
+      - optionally computes RANDOM if random_trials > 0
+    """
+    results = eval_scot_regret_atomic(
+        envs,
+        chosen_scot_flat,
+        birl_kwargs=birl_kwargs,
+        vi_epsilon=vi_epsilon,
+        regret_epsilon=regret_epsilon,
+        n_jobs=n_jobs,
+    )
 
+    if random_trials > 0:
+        if make_random_args is None:
+            raise ValueError("make_random_args must be provided when random_trials > 0")
+
+        results.update(
+            eval_random_regret_atomic(
+                envs,
+                make_random_args,
+                n_random_trials=random_trials,
+                birl_kwargs=birl_kwargs,
+                vi_epsilon=vi_epsilon,
+                regret_epsilon=regret_epsilon,
+                n_jobs=n_jobs,
+            )
+        )
+
+    return results
+
+
+# =============================================================================
+# 6. Main experiment
+# =============================================================================
 def run_universal_experiment(
     *,
     n_envs,
@@ -320,7 +362,8 @@ def run_universal_experiment(
     **birl_kwargs,
 ):
     """
-    Run the full universal SCOT vs Random atomic IRL experiment.
+    Run the full universal SCOT experiment.
+    If random_trials > 0, also runs Random benchmark; otherwise runs SCOT-only.
     Logs progress and saves all results to JSON / NPY.
     """
 
@@ -392,13 +435,11 @@ def run_universal_experiment(
     # ---------------------------------------------------
     # 3. Value Iteration
     # ---------------------------------------------------
-
-    # n_jobs=None → use all CPU cores
     Q_list = parallel_value_iteration(
         envs,
         epsilon=1e-10,
         n_jobs=None,
-        log=log
+        log=log,
     )
 
     # ---------------------------------------------------
@@ -456,7 +497,7 @@ def run_universal_experiment(
         f"in {time.time() - t0:.2f}s\n"
     )
 
-    # Flatten atoms for BIRL
+    # Flatten atoms for BIRL (not strictly required later, but kept)
     atoms_flat = [
         (i, atom)
         for i, atoms in enumerate(candidates_per_env)
@@ -538,6 +579,7 @@ def run_universal_experiment(
         log(f"         env {env_idx:02d}: {num_atoms} atoms, coverage={total_cov}")
     log(f"       #activated envs: {num_envs_activated}/{n_envs}\n")
 
+    # BIRL expects flattened: (env_idx, atom)
     chosen_scot_flat = [(i, atom) for (i, atom) in chosen_scot]
 
     # ---------------------------------------------------
@@ -551,10 +593,8 @@ def run_universal_experiment(
             return ("ZERO",)
         return tuple(np.round(v / n, 12))
 
-    # Hash universal constraints
     U_keys = {key_for(v) for v in U_universal}
 
-    # Flatten SCOT constraints
     if len(scot_constraint_sets) > 0:
         scot_constraints_flat = np.vstack(scot_constraint_sets)
     else:
@@ -584,27 +624,36 @@ def run_universal_experiment(
     }
 
     # ---------------------------------------------------
-    # 10. Regret evaluation
+    # 10. Regret evaluation (SCOT-only or SCOT+Random)
     # ---------------------------------------------------
+    if random_trials > 0:
+        log("[10/12] Computing regret (SCOT vs Random)...")
+    else:
+        log("[10/12] Computing regret (SCOT only; random_trials=0)...")
 
-    log("[10/12] Computing regret (SCOT vs Random)...")
     t0 = time.time()
 
-    # Safe: we pass only data, NOT a function
+    # Data tuple only (picklable)
     make_random_args = (candidates_per_env, chosen_scot)
 
-    results = run_scot_vs_random_Q_regret_atomic(
+    results = run_regret_evaluation_atomic(
         envs,
         chosen_scot_flat,
-        make_random_args,        # picklable data tuple
-        n_random_trials=random_trials,
+        make_random_args=make_random_args if random_trials > 0 else None,
+        random_trials=random_trials,
         birl_kwargs=birl_kwargs,
+        vi_epsilon=1e-6,
+        regret_epsilon=1e-4,
+        n_jobs=None,
     )
 
     log(f"       ✔ Regret computed in {time.time() - t0:.2f}s")
     log(f"       SCOT mean regret: {np.mean(results['SCOT']['regret_map']):.4f}")
-    log(f"       Random mean regret: {np.mean(results['RANDOM']['regret_map']):.4f}\n")
 
+    if "RANDOM" in results:
+        log(f"       Random mean regret: {np.mean(results['RANDOM']['regret_map']):.4f}\n")
+    else:
+        log("       Random baseline skipped.\n")
 
     # ---------------------------------------------------
     # 11. Save raw constraint logs
@@ -635,7 +684,7 @@ def run_universal_experiment(
             "improvement": bool(feedback_improvement),
             "feedback_count": feedback_count,
         },
-        "random_trials": random_trials,
+        "random_trials": int(random_trials),
         "seed": seed,
         "coverage": coverage_stats,
         "scot_env_stats": env_stats_summary,
@@ -662,31 +711,15 @@ def run_universal_experiment(
 # ============================================================
 # CLI ENTRY POINT (argparse)
 # ============================================================
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run universal SCOT vs Random atomic IRL experiment."
+        description="Run universal SCOT vs Random atomic IRL experiment (supports SCOT-only when --random_trials 0)."
     )
 
     # Environment / MDP parameters
-    parser.add_argument(
-        "--n_envs",
-        type=int,
-        default=30,
-        help="Number of MDP environments to generate.",
-    )
-    parser.add_argument(
-        "--mdp_size",
-        type=int,
-        default=10,
-        help="Gridworld size (rows = cols = mdp_size).",
-    )
-    parser.add_argument(
-        "--feature_dim",
-        type=int,
-        default=2,
-        help="Number of reward features.",
-    )
+    parser.add_argument("--n_envs", type=int, default=30, help="Number of MDP environments to generate.")
+    parser.add_argument("--mdp_size", type=int, default=10, help="Gridworld size (rows = cols = mdp_size).")
+    parser.add_argument("--feature_dim", type=int, default=2, help="Number of reward features.")
     parser.add_argument(
         "--w_true_mode",
         type=str,
@@ -702,54 +735,19 @@ if __name__ == "__main__":
         default=["demo", "pairwise", "estop", "improvement"],
         help="Feedback types to enable. Options: demo pairwise estop improvement",
     )
-    parser.add_argument(
-        "--feedback_count",
-        type=int,
-        default=50,
-        help="Atoms per feedback type per environment.",
-    )
+    parser.add_argument("--feedback_count", type=int, default=50, help="Atoms per feedback type per environment.")
 
     # Random baseline (for regret comparison)
-    parser.add_argument(
-        "--random_trials",
-        type=int,
-        default=10,
-        help="How many random baseline seeds to try.",
-    )
+    parser.add_argument("--random_trials", type=int, default=10, help="How many random baseline seeds to try. Use 0 for SCOT-only.")
 
     # BIRL (MCMC) settings
-    parser.add_argument(
-        "--samples",
-        type=int,
-        default=5000,
-        help="Number of MCMC samples.",
-    )
-    parser.add_argument(
-        "--stepsize",
-        type=float,
-        default=0.1,
-        help="Proposal stepsize in MCMC.",
-    )
-    parser.add_argument(
-        "--beta",
-        type=float,
-        default=10.0,
-        help="Inverse temperature for likelihood.",
-    )
+    parser.add_argument("--samples", type=int, default=5000, help="Number of MCMC samples.")
+    parser.add_argument("--stepsize", type=float, default=0.1, help="Proposal stepsize in MCMC.")
+    parser.add_argument("--beta", type=float, default=10.0, help="Inverse temperature for likelihood.")
 
     # General settings
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Random seed for reproducibility.",
-    )
-    parser.add_argument(
-        "--result_dir",
-        type=str,
-        default="results_universal",
-        help="Parent directory to store experiment results.",
-    )
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility.")
+    parser.add_argument("--result_dir", type=str, default="results_universal", help="Parent directory to store experiment results.")
 
     args = parser.parse_args()
 

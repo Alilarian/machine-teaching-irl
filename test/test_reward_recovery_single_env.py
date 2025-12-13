@@ -24,29 +24,119 @@ from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 # FIXED: Construct demo atoms using 1-step trajectories
 # =====================================================
 
-def make_demo_atoms(env, Q):
+# def make_demo_atoms(env, Q):
+#     """
+#     Produce Atom(env_idx, 'demo', traj_array)
+#     where traj_array is shape (1, 2):
+#         [[s, a_opt]]
+#     This satisfies Numba's requirement in demo_ll_numba().
+#     """
+#     atoms = []
+#     env_idx = 0
+#     terminals = set(env.terminal_states or [])
+
+#     for s in range(env.get_num_states()):
+#         if s in terminals:
+#             continue
+
+#         a_opt = int(np.argmax(Q[s]))
+
+#         # IMPORTANT FIX:
+#         # Create a 1-step trajectory array (T=1, features=2)
+#         traj = np.array([[s, a_opt]], dtype=np.int64)
+
+#         atom = Atom(env_idx, "demo", traj)
+#         atoms.append((env_idx, atom))
+
+#     return atoms
+import numpy as np
+
+def make_demo_atoms(env, Q, horizon=2, tie_tol=1e-9, tie_break="random"):
     """
-    Produce Atom(env_idx, 'demo', traj_array)
-    where traj_array is shape (1, 2):
-        [[s, a_opt]]
-    This satisfies Numba's requirement in demo_ll_numba().
+    Produce atoms with longer trajectories and no tie loss.
+
+    - For each non-terminal start state s:
+        - find ALL optimal actions (ties) in Q[s]
+        - for each optimal action a0, create one Atom with a rollout of length `horizon`
+    - Rollout dynamics:
+        - step to next state using env.transitions if available (argmax-prob next state)
+        - thereafter follow an optimal action chosen via `tie_break` among ties
+    - If we reach terminal early, pad with (terminal_state, -1) so traj length == horizon
+      (demo_ll_numba skips terminal or a<0 anyway).
     """
+    assert horizon >= 2, "Set horizon >= 2 to guarantee traj length > 1."
+
     atoms = []
     env_idx = 0
     terminals = set(env.terminal_states or [])
 
-    for s in range(env.get_num_states()):
-        if s in terminals:
+    # helper: deterministic next-state from transition matrix if present
+    def next_state(s, a):
+        if hasattr(env, "transitions"):
+            probs = env.transitions[s, a]
+            return int(np.argmax(probs))  # most-likely next state (deterministic)
+        else:
+            raise AttributeError(
+                "env has no `.transitions` matrix. "
+                "Add a next_state() method or expose transitions to build rollouts."
+            )
+
+    def pick_action(opt_actions):
+        if tie_break == "min":
+            return int(opt_actions[0])
+        elif tie_break == "max":
+            return int(opt_actions[-1])
+        elif tie_break == "random":
+            return int(np.random.choice(opt_actions))
+        else:
+            raise ValueError("tie_break must be one of: 'min', 'max', 'random'")
+
+    S = env.get_num_states()
+
+    for s0 in range(S):
+        if s0 in terminals:
             continue
 
-        a_opt = int(np.argmax(Q[s]))
+        q_row = Q[s0]
+        q_max = np.max(q_row)
 
-        # IMPORTANT FIX:
-        # Create a 1-step trajectory array (T=1, features=2)
-        traj = np.array([[s, a_opt]], dtype=np.int64)
+        # ALL optimal actions within tolerance
+        opt_actions = np.flatnonzero(q_row >= (q_max - tie_tol))
+        opt_actions = np.sort(opt_actions)
 
-        atom = Atom(env_idx, "demo", traj)
-        atoms.append((env_idx, atom))
+        for a0 in opt_actions:
+            traj = np.empty((horizon, 2), dtype=np.int64)
+
+            s = int(s0)
+            a = int(a0)
+
+            for t in range(horizon):
+                traj[t, 0] = s
+                traj[t, 1] = a
+
+                # if current is terminal, pad remaining with (s, -1)
+                if s in terminals:
+                    a = -1
+                    continue
+
+                # transition
+                s_next = next_state(s, a)
+
+                # if next is terminal, we still write it next loop iteration then pad
+                s = int(s_next)
+
+                # choose next action (optimal w/ tie break), or -1 if terminal
+                if s in terminals:
+                    a = -1
+                else:
+                    qn = Q[s]
+                    qn_max = np.max(qn)
+                    opt_next = np.flatnonzero(qn >= (qn_max - tie_tol))
+                    opt_next = np.sort(opt_next)
+                    a = pick_action(opt_next)
+
+            atom = Atom(env_idx, "demo", traj)
+            atoms.append((env_idx, atom))
 
     return atoms
 
