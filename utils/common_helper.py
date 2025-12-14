@@ -62,6 +62,20 @@ def parallel_value_iteration(
     log(f"       ✔ VI completed in {time.time() - t0:.2f}s\n")
     return Q_list
 
+import numpy as np
+
+def sa_pairs_to_action_list(env, sa_pairs, default_action=0, include_terminals=False):
+    S = env.get_num_states()
+    terminals = set(getattr(env, "terminal_states", []) or [])
+    policy = [default_action] * S
+
+    for s, a in sa_pairs:
+        s = int(s); a = int(a)
+        if (not include_terminals) and (s in terminals):
+            continue
+        policy[s] = a
+
+    return policy
 
 
 
@@ -119,6 +133,7 @@ def calculate_expected_value_difference(eval_policy, env, epsilon=0.0001, normal
     # Run value iteration to get the optimal state values
     V_opt = ValueIteration(env).run_value_iteration(epsilon=epsilon)
     
+    eval_policy = sa_pairs_to_action_list(env, eval_policy)
     # Perform policy evaluation for the provided eval_policy
     V_eval = PolicyEvaluation(env, policy=eval_policy).run_policy_evaluation(epsilon=epsilon)
     

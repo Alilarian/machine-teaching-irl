@@ -1,0 +1,90 @@
+{
+    "SCOT": {
+        "regret_map": [
+            112.5942323348831,
+            151.4928426327732,
+            43.02586523625405,
+            43.377481761221574,
+            94.23675612782102
+        ],
+        "regret_mean": [
+            138.9244524874134,
+            214.2688850274737,
+            64.69509156201929,
+            54.50062684315396,
+            138.6524569317149
+        ]
+    },
+    "BIRL": {
+        "SCOT_accept_rate": 0.524
+    },
+    "metadata": {
+        "W_TRUE": [
+            0.18881711923692265,
+            -0.19839032737660414,
+            0.9617636786063786
+        ],
+        "experiment_dir": "results_universal/exp_env5_size5_fd3_fb0_20251213-134048",
+        "n_envs": 5,
+        "mdp_size": 5,
+        "feature_dim": 3,
+        "w_true_mode": "random_signed",
+        "feedback": {
+            "demos": true,
+            "pairwise": false,
+            "estop": false,
+            "improvement": false,
+            "feedback_count": 0
+        },
+        "random_trials": 0,
+        "seed": 0,
+        "coverage": {
+            "num_universal": 3,
+            "num_scot_constraints": 7,
+            "num_covered": 3,
+            "num_missed": 0,
+            "coverage_pct": 100.0
+        },
+        "scot_env_stats": {
+            "0": {
+                "num_atoms": 3,
+                "total_coverage": 3,
+                "indices": [
+                    0,
+                    1,
+                    2
+                ],
+                "coverage_counts": [
+                    1,
+                    1,
+                    1
+                ]
+            },
+            "1": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "2": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "3": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "4": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            }
+        },
+        "num_envs_activated": 1
+    }
+}

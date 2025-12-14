@@ -445,7 +445,7 @@ def derive_constraints_from_atoms(
             U_per_env.append(np.zeros((0, d)))
             continue
 
-        env_constraints = np.array(remove_redundant_constraints(env_constraints, epsilon=lp_epsilon))
+        #env_constraints = np.array(remove_redundant_constraints(env_constraints, epsilon=lp_epsilon))
         U_per_env.append(env_constraints)
 
         for v in env_constraints:
@@ -465,7 +465,7 @@ def derive_constraints_from_atoms(
         if not is_close:
             unique.append(v)
 
-    U_global = np.array(unique)
+    U_global = np.array(remove_redundant_constraints(unique, epsilon=lp_epsilon))
     return U_per_env, U_global
 
 

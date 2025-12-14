@@ -274,8 +274,6 @@ class ValueIteration:
         return policy
 
 
-from numba import njit
-
 @njit
 def pe_entering_kernel(T, Pi, r_enter, gamma, terminal_mask,
                        V, V_prev, thresh, max_iters, terminal_value):
@@ -358,8 +356,6 @@ def pe_on_kernel(T, Pi, r_on, gamma, terminal_mask,
         iters += 1
 
     return V
-
-import numpy as np
 
 class PolicyEvaluation:
     """

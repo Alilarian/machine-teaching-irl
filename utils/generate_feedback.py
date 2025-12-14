@@ -99,8 +99,8 @@ def generate_valid_trajectories(env, n, min_length=3, max_horizon=25):
 def generate_q_optimal_trajectories(
     env,
     q_values,
-    num_rollouts_per_state=10,
-    max_steps=15,
+    num_rollouts_per_state=1,
+    max_steps=1,
     tie_eps=1e-10,
 ):
     S = env.get_num_states()

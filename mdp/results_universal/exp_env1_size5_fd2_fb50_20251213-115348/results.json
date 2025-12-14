@@ -1,0 +1,53 @@
+{
+    "SCOT": {
+        "regret_map": [
+            206.1957439779916
+        ],
+        "regret_mean": [
+            206.1957439779916
+        ]
+    },
+    "BIRL": {
+        "SCOT_accept_rate": 0.76
+    },
+    "metadata": {
+        "W_TRUE": [
+            0.6894137976242853,
+            -0.7243677350940344
+        ],
+        "experiment_dir": "results_universal/exp_env1_size5_fd2_fb50_20251213-115348",
+        "n_envs": 1,
+        "mdp_size": 5,
+        "feature_dim": 2,
+        "w_true_mode": "random_signed",
+        "feedback": {
+            "demos": true,
+            "pairwise": false,
+            "estop": false,
+            "improvement": false,
+            "feedback_count": 50
+        },
+        "random_trials": 0,
+        "seed": 0,
+        "coverage": {
+            "num_universal": 1,
+            "num_scot_constraints": 1,
+            "num_covered": 1,
+            "num_missed": 0,
+            "coverage_pct": 100.0
+        },
+        "scot_env_stats": {
+            "0": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "indices": [
+                    0
+                ],
+                "coverage_counts": [
+                    1
+                ]
+            }
+        },
+        "num_envs_activated": 1
+    }
+}

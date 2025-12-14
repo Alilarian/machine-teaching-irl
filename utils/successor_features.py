@@ -19,6 +19,21 @@ def build_Pi_from_q(env, q_values, tie_eps=1e-10):
     return Pi
 
 
+def max_q_sa_pairs(env, q_values, include_terminals=False):
+    S, A = env.get_num_states(), env.get_num_actions()
+    terminals = set(getattr(env, "terminal_states", []) or [])
+    out = []
+
+    for s in range(S):
+        if (not include_terminals) and (s in terminals):
+            continue
+        row = np.asarray(q_values[s], dtype=float)
+        a_star = int(np.argmax(row))   # first max if ties
+        out.append((s, a_star))
+
+    return out
+
+
 def compute_successor_features_iterative_from_q(
     env,
     q_values,

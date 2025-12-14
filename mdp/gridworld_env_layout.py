@@ -2,6 +2,7 @@ import gymnasium as gym
 from gym import spaces
 import numpy as np
 import random
+from agent.q_learning_agent import ValueIteration
 #import pygame
 
 # Action indices (match docstring: 0:UP, 1:DOWN, 2:LEFT, 3:RIGHT)
@@ -236,3 +237,89 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
     def set_feature_weights(self, weights):
         w = np.array(weights, dtype=float)
         self.feature_weights = w / (np.linalg.norm(w) + 1e-12)
+
+    def print_mdp_info(self):
+        """
+        Prints a summary of the MDP structure.
+        """
+        print("\n========== GridWorld MDP Info ==========")
+        print(f"Grid size           : {self.rows} x {self.columns}")
+        print(f"Num states          : {self.num_states}")
+        print(f"Num actions         : {self.num_actions}")
+        print(f"Discount factor γ   : {self.gamma}")
+        print(f"Noise probability  : {self.noise_prob}")
+        print(f"Num features        : {self.num_features}")
+        print(f"Terminal states     : {self.terminal_states}")
+        print(f"Start location      : {self.start_location}")
+
+        print("\nFeature weights (normalized):")
+        print(np.round(self.feature_weights, 4))
+
+        print("\nLayout (colors):")
+        for r in range(self.rows):
+            print(" ".join(self.grid_colors[r]))
+
+        print("\nSample transition check (state 0):")
+        for a in range(self.num_actions):
+            probs = self.transitions[0, a]
+            nz = [(s, round(p, 3)) for s, p in enumerate(probs) if p > 0]
+            print(f"  Action {a}: {nz}")
+
+        print("=======================================\n")
+
+    def print_optimal_policy(self, epsilon=1e-6, max_iter=10_000):
+        """
+        Computes and prints the optimal policy using value iteration.
+        """
+        S, A = self.num_states, self.num_actions
+        V = np.zeros(S)
+
+        # --- Value Iteration ---
+        for _ in range(max_iter):
+            delta = 0.0
+            for s in range(S):
+                if s in self.terminal_states:
+                    continue
+
+                r = self.compute_reward(s)
+                Q_sa = np.zeros(A)
+                for a in range(A):
+                    Q_sa[a] = r + self.gamma * np.dot(
+                        self.transitions[s, a], V
+                    )
+
+                v_new = np.max(Q_sa)
+                delta = max(delta, abs(V[s] - v_new))
+                V[s] = v_new
+
+            if delta < epsilon:
+                break
+
+        # --- Extract policy ---
+        policy = np.full(S, -1, dtype=int)
+        for s in range(S):
+            if s in self.terminal_states:
+                continue
+            Q_sa = np.zeros(A)
+            for a in range(A):
+                Q_sa[a] = self.compute_reward(s) + self.gamma * np.dot(
+                    self.transitions[s, a], V
+                )
+            policy[s] = int(np.argmax(Q_sa))
+
+        # --- Pretty print ---
+        arrow = {UP: "↑", DOWN: "↓", LEFT: "←", RIGHT: "→"}
+
+        print("\n========== Optimal Policy ==========")
+        for r in range(self.rows):
+            row_syms = []
+            for c in range(self.columns):
+                s = r * self.columns + c
+                if s in self.terminal_states:
+                    row_syms.append(" T ")
+                else:
+                    row_syms.append(f" {arrow[policy[s]]} ")
+            print("".join(row_syms))
+        print("===================================\n")
+
+        return policy, V

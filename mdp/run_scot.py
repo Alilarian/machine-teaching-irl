@@ -15,7 +15,7 @@ if module_path not in sys.path:
 
 from agent.q_learning_agent_ import ValueIteration
 from utils.common_helper import calculate_expected_value_difference
-from utils.successor_features import build_Pi_from_q
+from utils.successor_features import build_Pi_from_q, max_q_sa_pairs
 from utils import (
     generate_random_gridworld_envs,
     compute_successor_features_family,
@@ -132,7 +132,10 @@ def birl_atomic_to_Q_lists(
 # =============================================================================
 def _compute_regret_wrapper(args):
     env, Q, tie_eps, epsilon, normalize = args
-    pi = build_Pi_from_q(env, Q, tie_eps=tie_eps)
+    #pi = build_Pi_from_q(env, Q, tie_eps=tie_eps) ## This one returns probabilsitic things
+    pi = max_q_sa_pairs(env, Q,)
+    print("Pi insided compute regret wrapper")
+    print(pi)
     r = calculate_expected_value_difference(
         env=env,
         eval_policy=pi,
@@ -421,7 +424,7 @@ def run_universal_experiment(
         color_to_feature_map=color_to_feature_map,
         palette=palette,
         p_color_range=p_color_range,
-        terminal_policy=dict(kind="random_k", k_min=0, k_max=1, p_no_terminal=0.1),
+        terminal_policy=dict(kind="random_k", k_min=1, k_max=1, p_no_terminal=0.0),
         gamma_range=(0.98, 0.995),
         noise_prob_range=(0.0, 0.0),
         w_mode="fixed",
@@ -432,6 +435,11 @@ def run_universal_experiment(
 
     log(f"       ✔ Generated {n_envs} environments in {time.time() - t0:.2f}s\n")
 
+    #### To debug #####
+    for env in envs:
+        env.print_mdp_info()
+    #### To debug #####
+
     # ---------------------------------------------------
     # 3. Value Iteration
     # ---------------------------------------------------
@@ -441,6 +449,8 @@ def run_universal_experiment(
         n_jobs=None,
         log=log,
     )
+
+    ### Print optimal policy
 
     # ---------------------------------------------------
     # 4. Successor features
@@ -483,6 +493,8 @@ def run_universal_experiment(
         envs,
         Q_list,
         use_q_demos=feedback_demos,
+        num_q_rollouts_per_state=1,
+        q_demo_max_steps=1,
         use_pairwise=feedback_pairwise,
         use_estop=feedback_estop,
         use_improvement=feedback_improvement,
@@ -561,6 +573,12 @@ def run_universal_experiment(
         f"in {time.time() - t0:.2f}s"
     )
 
+
+    for i in chosen_scot:
+        print(i)
+        print(i[1].data)
+
+
     # Env activation summary
     log("       SCOT env coverage summary (per-env #selected):")
     num_envs_activated = 0
@@ -579,41 +597,134 @@ def run_universal_experiment(
         log(f"         env {env_idx:02d}: {num_atoms} atoms, coverage={total_cov}")
     log(f"       #activated envs: {num_envs_activated}/{n_envs}\n")
 
+        
     # BIRL expects flattened: (env_idx, atom)
     chosen_scot_flat = [(i, atom) for (i, atom) in chosen_scot]
+
+    print("Universal Const")
+    for i in U_atoms_global:
+        print(i)
+
+    print("SCOT Const")
+    for i in scot_constraint_sets:
+        print(i)
 
     # ---------------------------------------------------
     # 9.5 Universal-vs-SCOT constraint coverage
     # ---------------------------------------------------
+    # log("[9.5/12] Checking constraint coverage...")
+
+    # def key_for(v):
+    #     n = np.linalg.norm(v)
+    #     if n == 0 or not np.isfinite(n):
+    #         return ("ZERO",)
+    #     return tuple(np.round(v / n, 12))
+
+    # U_keys = {key_for(v) for v in U_universal}
+
+    # if len(scot_constraint_sets) > 0:
+    #     scot_constraints_flat = np.vstack(scot_constraint_sets)
+    # else:
+    #     scot_constraints_flat = np.zeros((0, feature_dim))
+
+    # SCOT_keys = {key_for(v) for v in scot_constraints_flat}
+
+    # covered_keys = U_keys & SCOT_keys
+    # missed_keys = U_keys - SCOT_keys
+
+    # num_universal = len(U_keys)
+    # num_covered = len(covered_keys)
+    # num_missed = len(missed_keys)
+    # coverage_pct = 100 * (num_covered / max(1, num_universal))
+
+    # log(f"       Universal constraints count   : {num_universal}")
+    # log(f"       SCOT-covered constraints      : {num_covered}")
+    # log(f"       Missed universal constraints  : {num_missed}")
+    # log(f"       Coverage percentage           : {coverage_pct:.2f}%\n")
+
+    # coverage_stats = {
+    #     "num_universal": num_universal,
+    #     "num_scot_constraints": int(scot_constraints_flat.shape[0]),
+    #     "num_covered": num_covered,
+    #     "num_missed": num_missed,
+    #     "coverage_pct": coverage_pct,
+    # }
+
     log("[9.5/12] Checking constraint coverage...")
 
-    def key_for(v):
+    def key_for(v, decimals=12):
         n = np.linalg.norm(v)
         if n == 0 or not np.isfinite(n):
             return ("ZERO",)
-        return tuple(np.round(v / n, 12))
+        return tuple(np.round(v / n, decimals))
 
-    U_keys = {key_for(v) for v in U_universal}
+    def fmt_vec(v, precision=6):
+        return np.array2string(
+            np.asarray(v),
+            precision=precision,
+            floatmode="fixed",
+            separator=", ",
+        )
+
+    U_universal_arr = np.asarray(U_universal, dtype=float)
 
     if len(scot_constraint_sets) > 0:
-        scot_constraints_flat = np.vstack(scot_constraint_sets)
+        scot_constraints_flat = np.vstack(scot_constraint_sets).astype(float)
     else:
-        scot_constraints_flat = np.zeros((0, feature_dim))
+        scot_constraints_flat = np.zeros((0, feature_dim), dtype=float)
 
+    # Key sets
+    U_keys = {key_for(v) for v in U_universal_arr}
     SCOT_keys = {key_for(v) for v in scot_constraints_flat}
 
     covered_keys = U_keys & SCOT_keys
-    missed_keys = U_keys - SCOT_keys
+    missed_keys  = U_keys - SCOT_keys
 
     num_universal = len(U_keys)
+    num_scot = len(SCOT_keys)
     num_covered = len(covered_keys)
-    num_missed = len(missed_keys)
+    num_missed  = len(missed_keys)
     coverage_pct = 100 * (num_covered / max(1, num_universal))
 
     log(f"       Universal constraints count   : {num_universal}")
+    log(f"       SCOT constraints count        : {num_scot}")
     log(f"       SCOT-covered constraints      : {num_covered}")
     log(f"       Missed universal constraints  : {num_missed}")
     log(f"       Coverage percentage           : {coverage_pct:.2f}%\n")
+
+    # -------------------------
+    # Print constraints (bounded)
+    # -------------------------
+    MAX_SHOW = 30
+
+    log(f"       Universal constraints (raw) — showing {min(MAX_SHOW, len(U_universal_arr))}/{len(U_universal_arr)}")
+    for i, v in enumerate(U_universal_arr[:MAX_SHOW]):
+        log(f"         U[{i:04d}] {fmt_vec(v)}")
+
+    log(f"\n       SCOT constraints (raw) — showing {min(MAX_SHOW, len(scot_constraints_flat))}/{len(scot_constraints_flat)}")
+    for i, v in enumerate(scot_constraints_flat[:MAX_SHOW]):
+        log(f"         S[{i:04d}] {fmt_vec(v)}")
+
+    # -------------------------
+    # Optional: print missed directions (unit vectors)
+    # -------------------------
+    if num_missed > 0:
+        # Build representative unit vectors for missed keys
+        missed_units = []
+        for v in U_universal_arr:
+            k = key_for(v)
+            if k in missed_keys and k != ("ZERO",):
+                n = np.linalg.norm(v)
+                if n > 0 and np.isfinite(n):
+                    missed_units.append(v / n)
+
+        missed_units = np.asarray(missed_units, dtype=float)
+
+        log(f"\n       Missed universal directions (unit) — showing {min(MAX_SHOW, len(missed_units))}/{len(missed_units)}")
+        for i, v in enumerate(missed_units[:MAX_SHOW]):
+            log(f"         M[{i:04d}] {fmt_vec(v)}")
+
+    log("")  # final newline
 
     coverage_stats = {
         "num_universal": num_universal,
@@ -622,6 +733,7 @@ def run_universal_experiment(
         "num_missed": num_missed,
         "coverage_pct": coverage_pct,
     }
+
 
     # ---------------------------------------------------
     # 10. Regret evaluation (SCOT-only or SCOT+Random)
@@ -635,7 +747,7 @@ def run_universal_experiment(
 
     # Data tuple only (picklable)
     make_random_args = (candidates_per_env, chosen_scot)
-
+    print(chosen_scot_flat)
     results = run_regret_evaluation_atomic(
         envs,
         chosen_scot_flat,
