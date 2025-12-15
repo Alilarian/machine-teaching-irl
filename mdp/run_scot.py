@@ -6,6 +6,63 @@ import time
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 
+
+import numpy as np
+
+def extract_optimal_actions_from_Q(Q, tie_eps=1e-12):
+    """
+    For each state s, return a list of all optimal actions.
+
+    Args:
+        Q: np.ndarray of shape (S, A)
+        tie_eps: numerical tolerance for ties
+
+    Returns:
+        optimal_actions: list of lists, optimal_actions[s] = [a1, a2, ...]
+    """
+    optimal_actions = []
+    for s in range(Q.shape[0]):
+        row = Q[s]
+        max_q = np.max(row)
+        acts = np.where(np.abs(row - max_q) <= tie_eps)[0].tolist()
+        optimal_actions.append(acts)
+    return optimal_actions
+
+def print_policy_from_Q(env, Q, tie_eps=1e-12):
+    """
+    Print optimal policy for a single GridWorld env from Q-values.
+    Shows ALL optimal actions per state.
+    """
+    arrows = {0: "↑", 1: "↓", 2: "←", 3: "→"}
+
+    optimal_actions = extract_optimal_actions_from_Q(Q, tie_eps)
+
+    print("\n========== Optimal Policy ==========")
+    for r in range(env.rows):
+        row_syms = []
+        for c in range(env.columns):
+            s = r * env.columns + c
+
+            if s in env.terminal_states:
+                row_syms.append("  T  ")
+                continue
+
+            acts = optimal_actions[s]
+            sym = "".join(arrows[a] for a in acts)
+            row_syms.append(f"{sym:^5}")
+        print("".join(row_syms))
+    print("===================================\n")
+
+    return optimal_actions
+
+def print_all_env_policies(envs, Q_list, tie_eps=1e-12):
+    """
+    Print optimal policy for each env using precomputed Q-values.
+    """
+    for i, (env, Q) in enumerate(zip(envs, Q_list)):
+        print(f"\n########## ENV {i} ##########")
+        print_policy_from_Q(env, Q, tie_eps)
+
 # ---------------------------------------------------------------------
 # 0. Path & imports
 # ---------------------------------------------------------------------
@@ -76,7 +133,7 @@ def birl_atomic_to_Q_lists(
     samples=2000,
     stepsize=0.1,
     normalize=True,
-    adaptive=True,
+    adaptive=False,
     burn_frac=0.2,
     skip_rate=10,
     vi_epsilon=1e-6,
@@ -104,7 +161,7 @@ def birl_atomic_to_Q_lists(
         samples=samples,
         stepsize=stepsize,
         normalize=normalize,
-        adaptive=adaptive,
+        adaptive=False,
     )
 
     # Extract MAP and mean weights
@@ -237,6 +294,8 @@ def eval_scot_regret_atomic(
         vi_epsilon=vi_epsilon,
         **birl_kwargs,
     )
+
+    print_all_env_policies(envs, Q_scot_map, tie_eps=1e-12)
 
     reg_scot_map = regrets_from_Q(envs, Q_scot_map, epsilon=regret_epsilon, n_jobs=n_jobs)
     reg_scot_mean = regrets_from_Q(envs, Q_scot_mean, epsilon=regret_epsilon, n_jobs=n_jobs)
@@ -425,7 +484,7 @@ def run_universal_experiment(
         palette=palette,
         p_color_range=p_color_range,
         terminal_policy=dict(kind="random_k", k_min=1, k_max=1, p_no_terminal=0.0),
-        gamma_range=(0.98, 0.995),
+        gamma_range=(0.99, 0.99),
         noise_prob_range=(0.0, 0.0),
         w_mode="fixed",
         W_fixed=W_TRUE,
@@ -450,7 +509,8 @@ def run_universal_experiment(
         log=log,
     )
 
-    ### Print optimal policy
+    ### Print optimal policy ##### Debug
+    print_all_env_policies(envs, Q_list, tie_eps=1e-12)
 
     # ---------------------------------------------------
     # 4. Successor features
@@ -608,47 +668,6 @@ def run_universal_experiment(
     print("SCOT Const")
     for i in scot_constraint_sets:
         print(i)
-
-    # ---------------------------------------------------
-    # 9.5 Universal-vs-SCOT constraint coverage
-    # ---------------------------------------------------
-    # log("[9.5/12] Checking constraint coverage...")
-
-    # def key_for(v):
-    #     n = np.linalg.norm(v)
-    #     if n == 0 or not np.isfinite(n):
-    #         return ("ZERO",)
-    #     return tuple(np.round(v / n, 12))
-
-    # U_keys = {key_for(v) for v in U_universal}
-
-    # if len(scot_constraint_sets) > 0:
-    #     scot_constraints_flat = np.vstack(scot_constraint_sets)
-    # else:
-    #     scot_constraints_flat = np.zeros((0, feature_dim))
-
-    # SCOT_keys = {key_for(v) for v in scot_constraints_flat}
-
-    # covered_keys = U_keys & SCOT_keys
-    # missed_keys = U_keys - SCOT_keys
-
-    # num_universal = len(U_keys)
-    # num_covered = len(covered_keys)
-    # num_missed = len(missed_keys)
-    # coverage_pct = 100 * (num_covered / max(1, num_universal))
-
-    # log(f"       Universal constraints count   : {num_universal}")
-    # log(f"       SCOT-covered constraints      : {num_covered}")
-    # log(f"       Missed universal constraints  : {num_missed}")
-    # log(f"       Coverage percentage           : {coverage_pct:.2f}%\n")
-
-    # coverage_stats = {
-    #     "num_universal": num_universal,
-    #     "num_scot_constraints": int(scot_constraints_flat.shape[0]),
-    #     "num_covered": num_covered,
-    #     "num_missed": num_missed,
-    #     "coverage_pct": coverage_pct,
-    # }
 
     log("[9.5/12] Checking constraint coverage...")
 
@@ -874,7 +893,7 @@ if __name__ == "__main__":
         samples=args.samples,
         stepsize=args.stepsize,
         normalize=True,
-        adaptive=True,
+        adaptive=False,
         burn_frac=0.2,
         skip_rate=10,
     )

@@ -133,6 +133,9 @@ def calculate_expected_value_difference(eval_policy, env, epsilon=0.0001, normal
     # Run value iteration to get the optimal state values
     V_opt = ValueIteration(env).run_value_iteration(epsilon=epsilon)
     
+    print("Inside the expected value difference")
+    print("Env weight: ", env.get_feature_weights())
+
     eval_policy = sa_pairs_to_action_list(env, eval_policy)
     # Perform policy evaluation for the provided eval_policy
     V_eval = PolicyEvaluation(env, policy=eval_policy).run_policy_evaluation(epsilon=epsilon)
