@@ -6,7 +6,9 @@ import numpy as np
 from scipy.special import logsumexp
 import random
 from .successor_features import build_Pi_from_q
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
 
 # ============================================================
 # 0. Atom abstraction
@@ -83,13 +85,51 @@ def generate_random_trajectory_from_state(env, start_state, length):
     return traj
 
 
-def generate_valid_trajectories(env, n, min_length=3, max_horizon=25):
+# def generate_valid_trajectories(env, n, min_length=3, max_horizon=25):
+#     trajs = []
+#     while len(trajs) < n:
+#         t = generate_random_trajectory(env, max_horizon=max_horizon)
+#         if len(t) >= min_length:
+#             trajs.append(t)
+#     return trajs
+
+def _rollout_one(env, min_length, max_horizon):
+    t = generate_random_trajectory(env, max_horizon)
+    return t if len(t) >= min_length else None
+
+
+def generate_valid_trajectories(
+    env,
+    n,
+    min_length=3,
+    max_horizon=25,
+    max_workers=8,
+    oversample_factor=2,
+):
+    """
+    Thread-parallel trajectory generation inside ONE env.
+    """
     trajs = []
-    while len(trajs) < n:
-        t = generate_random_trajectory(env, max_horizon=max_horizon)
-        if len(t) >= min_length:
-            trajs.append(t)
-    return trajs
+    needed = n
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        while len(trajs) < n:
+            batch = oversample_factor * needed
+            futures = [
+                ex.submit(_rollout_one, env, min_length, max_horizon)
+                for _ in range(batch)
+            ]
+
+            for f in futures:
+                t = f.result()
+                if t is not None:
+                    trajs.append(t)
+                    if len(trajs) >= n:
+                        break
+
+            needed = n - len(trajs)
+
+    return trajs[:n]
 
 
 # ============================================================
@@ -140,58 +180,131 @@ def generate_q_optimal_trajectories(
 # 3. Corrections
 # ============================================================
 
-def simulate_corrections(env, trajs, num_random_trajs=25):
-    paired = []
+# def simulate_corrections(env, trajs, num_random_trajs=25):
+#     paired = []
 
-    for traj in trajs:
-        start_state = traj[0][0]
-        length = len(traj)
+#     for traj in trajs:
+#         start_state = traj[0][0]
+#         length = len(traj)
 
-        original_return = evaluate_trajectory(env, traj)
-        best_traj = traj
-        best_return = original_return
+#         original_return = evaluate_trajectory(env, traj)
+#         best_traj = traj
+#         best_return = original_return
 
-        for _ in range(num_random_trajs):
-            new_traj = generate_random_trajectory_from_state(env, start_state, length)
-            new_return = evaluate_trajectory(env, new_traj)
-            if new_return > best_return:
-                best_return = new_return
-                best_traj = new_traj
+#         for _ in range(num_random_trajs):
+#             new_traj = generate_random_trajectory_from_state(env, start_state, length)
+#             new_return = evaluate_trajectory(env, new_traj)
+#             if new_return > best_return:
+#                 best_return = new_return
+#                 best_traj = new_traj
 
-        paired.append((best_traj, traj))
-    return paired
+#         paired.append((best_traj, traj))
+#     return paired
 
+def _simulate_improvement_one(env, traj, num_random_trajs):
+    start_state = traj[0][0]
+    length = len(traj)
+
+    original_return = evaluate_trajectory(env, traj)
+    best_traj = traj
+    best_return = original_return
+
+    for _ in range(num_random_trajs):
+        new_traj = generate_random_trajectory_from_state(env, start_state, length)
+        new_return = evaluate_trajectory(env, new_traj)
+        if new_return > best_return:
+            best_return = new_return
+            best_traj = new_traj
+
+    return (best_traj, traj)
+
+def simulate_corrections(
+    env,
+    trajectories,
+    *,
+    num_random_trajs=25,
+    max_workers=8,
+):
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        return list(
+            ex.map(
+                lambda t: _simulate_improvement_one(env, t, num_random_trajs),
+                trajectories,
+            )
+        )
 
 # ============================================================
 # 4. Pairwise & E-Stop
 # ============================================================
 
-def generate_pairwise_comparisons(env, trajectories, num_comparisons=10):
-    rewarded = []
-    for t in trajectories:
-        r = evaluate_trajectory(env, t)
-        rewarded.append((t, r))
+# def generate_pairwise_comparisons(env, trajectories, num_comparisons=10):
+#     rewarded = []
+#     for t in trajectories:
+#         r = evaluate_trajectory(env, t)
+#         rewarded.append((t, r))
 
-    all_pairs = []
-    for i in range(len(rewarded)):
-        for j in range(i + 1, len(rewarded)):
-            t1, r1 = rewarded[i]
-            t2, r2 = rewarded[j]
-            if r1 == r2:
-                continue
-            if r1 > r2:
-                all_pairs.append((t1, t2))
-            else:
-                all_pairs.append((t2, t1))
+#     all_pairs = []
+#     for i in range(len(rewarded)):
+#         for j in range(i + 1, len(rewarded)):
+#             t1, r1 = rewarded[i]
+#             t2, r2 = rewarded[j]
+#             if r1 == r2:
+#                 continue
+#             if r1 > r2:
+#                 all_pairs.append((t1, t2))
+#             else:
+#                 all_pairs.append((t2, t1))
 
-    if not all_pairs:
-        return []
+#     if not all_pairs:
+#         return []
 
-    num = min(num_comparisons, len(all_pairs))
-    return random.sample(all_pairs, num)
+#     num = min(num_comparisons, len(all_pairs))
+#     return random.sample(all_pairs, num)
+
+def compute_rewards(env, trajectories):
+    return np.array([evaluate_trajectory(env, t) for t in trajectories])
+
+def generate_pairwise_comparisons(
+    env,
+    trajectories,
+    num_comparisons=10,
+    max_trials=50,
+):
+    """
+    O(K) expected time, no quadratic blowup.
+    """
+    rewards = compute_rewards(env, trajectories)
+    n = len(trajectories)
+
+    pairs = []
+    seen = set()
+    trials = 0
+
+    while len(pairs) < num_comparisons and trials < max_trials * num_comparisons:
+        i, j = np.random.choice(n, size=2, replace=False)
+        if rewards[i] == rewards[j]:
+            trials += 1
+            continue
+
+        key = (min(i, j), max(i, j))
+        if key in seen:
+            trials += 1
+            continue
+
+        seen.add(key)
+
+        if rewards[i] > rewards[j]:
+            pairs.append((trajectories[i], trajectories[j]))
+        else:
+            pairs.append((trajectories[j], trajectories[i]))
+
+        trials += 1
+
+    return pairs
 
 
-def simulate_human_estop(env, full_trajectory, beta=2.0):
+
+def simulate_human_estop_one(env, full_trajectory, beta=2.0):
     traj_len = len(full_trajectory)
     full_reward = sum(env.compute_reward(s) for s, _ in full_trajectory)
 
@@ -204,6 +317,23 @@ def simulate_human_estop(env, full_trajectory, beta=2.0):
 
     t_stop = int(np.argmax(log_probs))
     return (full_trajectory, t_stop)
+
+def _simulate_estop_one(env, traj, beta):
+    return simulate_human_estop_one(env, traj, beta)
+
+from concurrent.futures import ThreadPoolExecutor
+
+def simulate_human_estops(
+    env,
+    trajectories,
+    *,
+    beta=10.0,
+    max_workers=8,
+):
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        return list(
+            ex.map(lambda t: _simulate_estop_one(env, t, beta), trajectories)
+        )
 
 
 # ============================================================
@@ -227,158 +357,126 @@ def corrections_to_atoms(env_idx, imps):
 # 6. Unified feedback → atoms
 # ============================================================
 
-def simulate_all_feedback(
-    envs,
-    Q_list,
-    *,
-    n_base_trajs=20,
-    base_min_length=3,
-    base_max_horizon=25,
-    n_pairwise=5,
-    n_estops=5,
-    n_improvements=5,
-    n_random_demos=5,
-    q_demo_rollouts=10,
-    q_demo_max_steps=15,
-):
-    atoms_per_env = []
 
-    for i, (env, qv) in enumerate(zip(envs, Q_list)):
-        A = []
+def _generate_candidates_for_one_env(args):
+    """
+    Worker-safe, picklable function.
+    """
+    (
+        env_idx,
+        env,
+        qv,
+        use_q_demos,
+        num_q_rollouts_per_state,
+        q_demo_max_steps,
+        tie_eps,
+        use_pairwise,
+        n_pairwise,
+        use_estop,
+        n_estops,
+        use_improvement,
+        n_improvements,
+        n_random_for_improvement,
+        base_min_length,
+        base_max_horizon,
+    ) = args
 
-        # (1) Optimal Q demonstrations
-        q_trajs = generate_q_optimal_trajectories(env, qv,
-            num_rollouts_per_state=q_demo_rollouts,
-            max_steps=q_demo_max_steps
+    C = []
+
+    # ---------------- Q demos ----------------
+    if use_q_demos:
+        q_trajs = generate_q_optimal_trajectories(
+            env,
+            qv,
+            num_rollouts_per_state=num_q_rollouts_per_state,
+            max_steps=q_demo_max_steps,
+            tie_eps=tie_eps,
         )
-        A.extend(trajs_to_atoms(i, q_trajs, "demo"))
+        C.extend(trajs_to_atoms(env_idx, q_trajs, "demo"))
 
-        # (2) Base trajectories for pairwise/estop/improvement
+    # ---------------- base trajectories ----------------
+    needs_base = use_pairwise or use_estop or use_improvement
+    if needs_base:
+        base_count = max(n_pairwise, n_estops, n_improvements)
         base_trajs = generate_valid_trajectories(
             env,
-            n=n_base_trajs,
+            n=base_count,
             min_length=base_min_length,
-            max_horizon=base_max_horizon
+            max_horizon=base_max_horizon,
         )
 
-        # (3) Pairwise
-        pw = generate_pairwise_comparisons(env, base_trajs, num_comparisons=n_pairwise)
-        A.extend(pairwise_to_atoms(i, pw))
+    # ---------------- pairwise ----------------
+    if use_pairwise:
+        pw = generate_pairwise_comparisons(
+            env, base_trajs, num_comparisons=n_pairwise
+        )
+        C.extend(pairwise_to_atoms(env_idx, pw))
 
-        # (4) E-Stop
+    # ---------------- estop ----------------
+    if use_estop:
         estop_trajs = random.sample(base_trajs, min(n_estops, len(base_trajs)))
-        estops = [simulate_human_estop(env, t) for t in estop_trajs]
-        A.extend(estops_to_atoms(i, estops))
+        estops  = simulate_human_estops(env, estop_trajs)
+        #estops = [simulate_human_estop(env, t) for t in estop_trajs]
+        C.extend(estops_to_atoms(env_idx, estops))
 
-        # (5) Improvement
+    # ---------------- improvement ----------------
+    if use_improvement:
         imp_trajs = random.sample(base_trajs, min(n_improvements, len(base_trajs)))
-        imps = simulate_corrections(env, imp_trajs)
-        A.extend(corrections_to_atoms(i, imps))
+        imps = simulate_corrections(
+            env,
+            imp_trajs,
+            num_random_trajs=n_random_for_improvement,
+        )
+        C.extend(corrections_to_atoms(env_idx, imps))
 
-        atoms_per_env.append(A)
-
-    return atoms_per_env
-
-# ============================================================
-# 7. Unified SCOT candidate generator
-# ============================================================
-
-# ============================================================
-# 7. Unified SCOT candidate generator  (NO RANDOM DEMOS)
-# ============================================================
+    return env_idx, C
 
 def generate_candidate_atoms_for_scot(
     envs,
     Q_list,
     *,
-    # ---- Q-demos ----
-    use_q_demos=True,
-    num_q_rollouts_per_state=10,
-    q_demo_max_steps=1,
-    tie_eps=1e-10,
-
-    # ---- Pairwise ----
-    use_pairwise=False,
-    n_pairwise=10,
-
-    # ---- E-stop ----
-    use_estop=False,
-    n_estops=10,
-
-    # ---- Improvement ----
-    use_improvement=False,
-    n_improvements=10,
-    n_random_for_improvement=300,
-
-    # ---- Base traj parameters (for pairwise/estop/improvement) ----
-    base_min_length=3,
-    base_max_horizon=100,
+    max_workers=None,
+    **kwargs,
 ):
     """
-    Generate candidate ATOMS for SCOT.
-    Random demonstrations are REMOVED as requested.
-
-    Returns:
-        candidates_per_env: List[List[Atom]]
+    Parallel version: one process per environment.
     """
-    candidates_per_env = []
 
+    if max_workers is None:
+        max_workers = min(len(envs), mp.cpu_count())
+
+    tasks = []
     for env_idx, (env, qv) in enumerate(zip(envs, Q_list)):
-        C = []
+        tasks.append((
+            env_idx,
+            env,
+            qv,
+            kwargs.get("use_q_demos", True),
+            kwargs.get("num_q_rollouts_per_state", 10),
+            kwargs.get("q_demo_max_steps", 1),
+            kwargs.get("tie_eps", 1e-10),
+            kwargs.get("use_pairwise", False),
+            kwargs.get("n_pairwise", 10),
+            kwargs.get("use_estop", False),
+            kwargs.get("n_estops", 10),
+            kwargs.get("use_improvement", False),
+            kwargs.get("n_improvements", 10),
+            kwargs.get("n_random_for_improvement", 300),
+            kwargs.get("base_min_length", 3),
+            kwargs.get("base_max_horizon", 100),
+        ))
 
-        # --------------------------------------------------------
-        # 1) Q-optimal demonstration atoms  (EXACT original logic)
-        # --------------------------------------------------------
-        if use_q_demos:
-            q_trajs = generate_q_optimal_trajectories(
-                env,
-                qv,
-                num_rollouts_per_state=num_q_rollouts_per_state,
-                max_steps=q_demo_max_steps,
-                tie_eps=tie_eps
-            )
-            C.extend(trajs_to_atoms(env_idx, q_trajs, "demo"))
+    results = [None] * len(envs)
 
-        # --------------------------------------------------------
-        # Prepare base trajectories if needed
-        # --------------------------------------------------------
-        needs_base = use_pairwise or use_estop or use_improvement
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_generate_candidates_for_one_env, t) for t in tasks]
 
-        if needs_base:
-            base_count = max(n_pairwise, n_estops, n_improvements)
-            base_trajs = generate_valid_trajectories(
-                env,
-                n=base_count,
-                min_length=base_min_length,
-                max_horizon=base_max_horizon
-            )
+        for f in as_completed(futures):
+            env_idx, atoms = f.result()
+            results[env_idx] = atoms
 
-        # --------------------------------------------------------
-        # 2) Pairwise atoms
-        # --------------------------------------------------------
-        if use_pairwise:
-            pw = generate_pairwise_comparisons(env, base_trajs, num_comparisons=n_pairwise)
-            C.extend(pairwise_to_atoms(env_idx, pw))
+    return results
 
-        # --------------------------------------------------------
-        # 3) E-stop atoms
-        # --------------------------------------------------------
-        if use_estop:
-            estop_trajs = random.sample(base_trajs, min(n_estops, len(base_trajs)))
-            estops = [simulate_human_estop(env, t) for t in estop_trajs]
-            C.extend(estops_to_atoms(env_idx, estops))
-
-        # --------------------------------------------------------
-        # 4) Improvement atoms
-        # --------------------------------------------------------
-        if use_improvement:
-            imp_trajs = random.sample(base_trajs, min(n_improvements, len(base_trajs)))
-            imps = simulate_corrections(env, imp_trajs, num_random_trajs=n_random_for_improvement)
-            C.extend(corrections_to_atoms(env_idx, imps))
-
-        candidates_per_env.append(C)
-
-    return candidates_per_env
 
 ## Need to think about this part. how to generate mpre fairly than random
 def sample_random_atoms_like_scot(candidates_per_env, chosen_scot, seed=None):

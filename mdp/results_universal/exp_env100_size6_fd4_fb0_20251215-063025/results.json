@@ -1,0 +1,855 @@
+{
+    "SCOT": {
+        "regret_map": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.00527090328452573,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.002897478695757627,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.002793093870096186,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.005171758999921394,
+            0.0,
+            0.0,
+            0.002897478695757627,
+            0.0,
+            0.002897478695757627,
+            0.003080447387091567,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.002897478695757627,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.008634486513372508,
+            0.0,
+            0.0,
+            0.0026876546522629496,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.002897478695757627,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        "regret_mean": [
+            37.600759379659074,
+            37.31778467336517,
+            37.29141390536696,
+            37.38408138142484,
+            37.15633376489683,
+            37.43847143754323,
+            36.71537702440831,
+            37.2476626848411,
+            37.28240019860719,
+            37.41575607279191,
+            37.34420914998101,
+            37.89167865212568,
+            36.904388107357995,
+            37.24194243424897,
+            37.05213708460363,
+            37.416063217609064,
+            37.22370540820887,
+            36.98936438792203,
+            37.61941206624731,
+            36.796657927817904,
+            37.2285930523525,
+            37.18477355725316,
+            37.555457828062025,
+            37.28203360840965,
+            37.277909250950415,
+            36.236598015110744,
+            37.29772084786815,
+            37.73074211089898,
+            37.14095883426941,
+            37.121592577371885,
+            37.669623748165186,
+            37.20142661130754,
+            37.242218362902804,
+            36.81627555682921,
+            37.03106951478105,
+            36.22193347441973,
+            37.317596809181794,
+            35.99773592960666,
+            37.10364039321701,
+            36.33402839038857,
+            36.99172981321126,
+            36.94199445176919,
+            36.905340664190135,
+            37.15725598025173,
+            37.53601379427779,
+            37.40292576502327,
+            37.041312912504964,
+            37.51779174865675,
+            37.40829932325913,
+            37.38015183643982,
+            37.35128718134488,
+            37.148650141197535,
+            37.46081693368904,
+            37.27713838768581,
+            37.130828227750385,
+            37.30869580804062,
+            36.894464752318925,
+            37.51385175004003,
+            36.56138894460355,
+            37.34682269693455,
+            37.0765225578089,
+            37.43213603637341,
+            37.34314667152904,
+            36.99475158242272,
+            37.35986292601039,
+            37.26759104247985,
+            34.86468897061249,
+            36.94872670110412,
+            37.39574693580657,
+            37.80458389588779,
+            37.15489285972784,
+            37.29042966576772,
+            37.14982756703178,
+            37.20267573374963,
+            37.757288087773986,
+            36.75861284755494,
+            68.53199236312106,
+            35.4747117735276,
+            36.98004079799089,
+            36.47711258327925,
+            37.88127271658625,
+            37.358920757345004,
+            37.83392595700417,
+            37.17916871998523,
+            36.712114675181866,
+            36.99950295944562,
+            37.103378426004994,
+            37.337120770557135,
+            37.211649211817274,
+            37.14568333885275,
+            37.02852705279558,
+            37.532783370937224,
+            37.02690582074935,
+            37.02001620146278,
+            37.11774227366687,
+            38.16579100918386,
+            36.546427625405315,
+            37.29614554492108,
+            38.25279591223081,
+            37.21937629521116
+        ]
+    },
+    "BIRL": {
+        "SCOT_accept_rate": 0.082
+    },
+    "metadata": {
+        "W_TRUE": [
+            -0.3334656678432579,
+            0.3175916556897764,
+            -0.5445414437697766,
+            0.7010069932769598
+        ],
+        "experiment_dir": "results_universal/exp_env100_size6_fd4_fb0_20251215-063025",
+        "n_envs": 100,
+        "mdp_size": 6,
+        "feature_dim": 4,
+        "w_true_mode": "random_signed",
+        "feedback": {
+            "demos": true,
+            "pairwise": false,
+            "estop": false,
+            "improvement": false,
+            "feedback_count": 0
+        },
+        "random_trials": 0,
+        "seed": 421153,
+        "coverage": {
+            "num_universal": 4,
+            "num_scot_constraints": 12,
+            "num_covered": 4,
+            "num_missed": 0,
+            "coverage_pct": 100.0
+        },
+        "scot_env_stats": {
+            "0": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "1": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "2": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "3": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "4": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "5": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "6": {
+                "num_atoms": 3,
+                "total_coverage": 3,
+                "indices": [
+                    0,
+                    1,
+                    2
+                ],
+                "coverage_counts": [
+                    1,
+                    1,
+                    1
+                ]
+            },
+            "7": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "8": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "9": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "10": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "11": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "12": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "13": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "14": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "15": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "16": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "17": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "18": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "19": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "20": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "21": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "22": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "23": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "24": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "25": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "26": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "27": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "28": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "29": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "30": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "31": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "32": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "33": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "34": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "35": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "36": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "indices": [
+                    3
+                ],
+                "coverage_counts": [
+                    1
+                ]
+            },
+            "37": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "38": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "39": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "40": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "41": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "42": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "43": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "44": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "45": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "46": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "47": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "48": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "49": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "50": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "51": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "52": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "53": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "54": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "55": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "56": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "57": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "58": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "59": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "60": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "61": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "62": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "63": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "64": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "65": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "66": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "67": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "68": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "69": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "70": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "71": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "72": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "73": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "74": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "75": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "76": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "77": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "78": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "79": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "80": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "81": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "82": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "83": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "84": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "85": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "86": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "87": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "88": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "89": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "90": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "91": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "92": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "93": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "94": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "95": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "96": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "97": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "98": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            },
+            "99": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "indices": [],
+                "coverage_counts": []
+            }
+        },
+        "num_envs_activated": 2
+    }
+}

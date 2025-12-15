@@ -191,8 +191,8 @@ def _compute_regret_wrapper(args):
     env, Q, tie_eps, epsilon, normalize = args
     #pi = build_Pi_from_q(env, Q, tie_eps=tie_eps) ## This one returns probabilsitic things
     pi = max_q_sa_pairs(env, Q,)
-    print("Pi insided compute regret wrapper")
-    print(pi)
+    # print("Pi insided compute regret wrapper")
+    # print(pi)
     r = calculate_expected_value_difference(
         env=env,
         eval_policy=pi,

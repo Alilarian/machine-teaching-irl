@@ -244,6 +244,7 @@ from .successor_features import compute_successor_features_iterative_from_q
 from .lp_redundancy import remove_redundant_constraints
 from concurrent.futures import ProcessPoolExecutor
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 
 # ============================================================
 # 1. Successor Features Family Wrapper
@@ -422,6 +423,62 @@ def atom_to_constraints(atom, mu_sa, env):
 # 6. Atom-based Constraint Builder (GLOBAL + PER-ENV)
 # ============================================================
 
+# def derive_constraints_from_atoms(
+#     atoms_per_env,
+#     SFs,
+#     envs,
+#     *,
+#     precision=1e-3,
+#     lp_epsilon=1e-4,
+# ):
+#     all_constraints = []
+#     U_per_env = []
+
+#     for atoms, sf, env in zip(atoms_per_env, SFs, envs):
+#         mu_sa = sf[0]
+#         env_constraints = []
+
+#         for atom in atoms:
+#             env_constraints.extend(atom_to_constraints(atom, mu_sa, env))
+
+#         if len(env_constraints) == 0:
+#             d = mu_sa.shape[-1]
+#             U_per_env.append(np.zeros((0, d)))
+#             continue
+
+#         #env_constraints = np.array(remove_redundant_constraints(env_constraints, epsilon=lp_epsilon))
+#         U_per_env.append(env_constraints)
+
+#         for v in env_constraints:
+#             all_constraints.append(v)
+
+#     unique = []
+#     for v in all_constraints:
+#         v = np.asarray(v)
+#         v_norm = np.linalg.norm(v)
+#         if v_norm == 0:
+#             continue
+
+#         is_close = any(
+#             np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
+#             for u in unique
+#         )
+#         if not is_close:
+#             unique.append(v)
+
+#     U_global = np.array(remove_redundant_constraints(unique, epsilon=lp_epsilon))
+#     return U_per_env, U_global
+
+def _derive_constraints_one_env(args):
+    atoms, sf, env, precision = args
+    mu_sa = sf[0]
+    env_constraints = []
+
+    for atom in atoms:
+        env_constraints.extend(atom_to_constraints(atom, mu_sa, env))
+
+    return env_constraints
+
 def derive_constraints_from_atoms(
     atoms_per_env,
     SFs,
@@ -429,28 +486,31 @@ def derive_constraints_from_atoms(
     *,
     precision=1e-3,
     lp_epsilon=1e-4,
+    max_workers=None,
 ):
     all_constraints = []
     U_per_env = []
 
-    for atoms, sf, env in zip(atoms_per_env, SFs, envs):
-        mu_sa = sf[0]
-        env_constraints = []
+    tasks = list(zip(atoms_per_env, SFs, envs, [precision] * len(envs)))
 
-        for atom in atoms:
-            env_constraints.extend(atom_to_constraints(atom, mu_sa, env))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_derive_constraints_one_env, tasks))
 
+    # ----------------------------
+    # Collect per-env constraints
+    # ----------------------------
+    for env_constraints, sf in zip(results, SFs):
         if len(env_constraints) == 0:
-            d = mu_sa.shape[-1]
+            d = sf[0].shape[-1]
             U_per_env.append(np.zeros((0, d)))
             continue
 
-        #env_constraints = np.array(remove_redundant_constraints(env_constraints, epsilon=lp_epsilon))
         U_per_env.append(env_constraints)
+        all_constraints.extend(env_constraints)
 
-        for v in env_constraints:
-            all_constraints.append(v)
-
+    # ----------------------------
+    # Global uniqueness (serial)
+    # ----------------------------
     unique = []
     for v in all_constraints:
         v = np.asarray(v)
@@ -465,8 +525,14 @@ def derive_constraints_from_atoms(
         if not is_close:
             unique.append(v)
 
-    U_global = np.array(remove_redundant_constraints(unique, epsilon=lp_epsilon))
+    U_global = np.array(
+        remove_redundant_constraints(unique, epsilon=lp_epsilon)
+    )
+
     return U_per_env, U_global
+
+
+
 
 
 # ============================================================
