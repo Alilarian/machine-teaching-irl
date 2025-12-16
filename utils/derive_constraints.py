@@ -323,7 +323,6 @@ def derive_constraints_from_q_ties(
 
     return constraints
 
-
 # ============================================================
 # 3. Demo Constraints
 # ============================================================
@@ -423,52 +422,6 @@ def atom_to_constraints(atom, mu_sa, env):
 # 6. Atom-based Constraint Builder (GLOBAL + PER-ENV)
 # ============================================================
 
-# def derive_constraints_from_atoms(
-#     atoms_per_env,
-#     SFs,
-#     envs,
-#     *,
-#     precision=1e-3,
-#     lp_epsilon=1e-4,
-# ):
-#     all_constraints = []
-#     U_per_env = []
-
-#     for atoms, sf, env in zip(atoms_per_env, SFs, envs):
-#         mu_sa = sf[0]
-#         env_constraints = []
-
-#         for atom in atoms:
-#             env_constraints.extend(atom_to_constraints(atom, mu_sa, env))
-
-#         if len(env_constraints) == 0:
-#             d = mu_sa.shape[-1]
-#             U_per_env.append(np.zeros((0, d)))
-#             continue
-
-#         #env_constraints = np.array(remove_redundant_constraints(env_constraints, epsilon=lp_epsilon))
-#         U_per_env.append(env_constraints)
-
-#         for v in env_constraints:
-#             all_constraints.append(v)
-
-#     unique = []
-#     for v in all_constraints:
-#         v = np.asarray(v)
-#         v_norm = np.linalg.norm(v)
-#         if v_norm == 0:
-#             continue
-
-#         is_close = any(
-#             np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
-#             for u in unique
-#         )
-#         if not is_close:
-#             unique.append(v)
-
-#     U_global = np.array(remove_redundant_constraints(unique, epsilon=lp_epsilon))
-#     return U_per_env, U_global
-
 def _derive_constraints_one_env(args):
     atoms, sf, env, precision = args
     mu_sa = sf[0]
@@ -532,44 +485,78 @@ def derive_constraints_from_atoms(
     return U_per_env, U_global
 
 
-
-
-
 # ============================================================
 # 7. Q-only Constraint Builder
 # ============================================================
+
+def _derive_constraints_from_q_one_env(args):
+    mu_sa, q, env, tie_eps, skip_terminals, normalize, tol = args
+
+    cons = derive_constraints_from_q_ties(
+        mu_sa,
+        q,
+        env,
+        tie_eps=tie_eps,
+        skip_terminals=skip_terminals,
+        normalize=normalize,
+        tol=tol,
+    )
+
+    # H_i = list of constraint vectors
+    return [c[0] for c in cons]
 
 def derive_constraints_from_q_family(
     SFs,
     Q_list,
     envs,
+    *,
     tie_eps=1e-10,
     skip_terminals=True,
     normalize=True,
     tol=1e-12,
     precision=1e-3,
     lp_epsilon=1e-4,
+    max_workers=None,
 ):
     U_per_mdp = []
     all_H = []
 
-    for (mu_sa, _, _, _), q, env in zip(SFs, Q_list, envs):
-        cons = derive_constraints_from_q_ties(
-            mu_sa, q, env,
-            tie_eps=tie_eps,
-            skip_terminals=skip_terminals,
-            normalize=normalize,
-            tol=tol,
+    tasks = [
+        (
+            sf[0],      # mu_sa
+            q,
+            env,
+            tie_eps,
+            skip_terminals,
+            normalize,
+            tol,
         )
-        H_i = [c[0] for c in cons]
+        for sf, q, env in zip(SFs, Q_list, envs)
+    ]
+
+    # ---------------------------
+    # Parallel per-env extraction
+    # ---------------------------
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_derive_constraints_from_q_one_env, tasks))
+
+    # ---------------------------
+    # Collect results
+    # ---------------------------
+    for H_i in results:
         U_per_mdp.append(H_i)
         all_H.extend(H_i)
 
+    # ---------------------------
+    # Global uniqueness (serial)
+    # ---------------------------
     pre = []
     for v in all_H:
+        v = np.asarray(v)
         v_norm = np.linalg.norm(v)
         if v_norm == 0:
             continue
+
         is_close = any(
             np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
             for u in pre
@@ -581,5 +568,76 @@ def derive_constraints_from_q_family(
         d = SFs[0][0].shape[-1]
         return U_per_mdp, np.zeros((0, d))
 
-    U_global = np.array(remove_redundant_constraints(pre, epsilon=lp_epsilon))
+    U_global = np.array(
+        remove_redundant_constraints(pre, epsilon=lp_epsilon)
+    )
+
     return U_per_mdp, U_global
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def derive_constraints_from_q_family(
+#     SFs,
+#     Q_list,
+#     envs,
+#     tie_eps=1e-10,
+#     skip_terminals=True,
+#     normalize=True,
+#     tol=1e-12,
+#     precision=1e-3,
+#     lp_epsilon=1e-4,
+# ):
+#     U_per_mdp = []
+#     all_H = []
+
+#     for (mu_sa, _, _, _), q, env in zip(SFs, Q_list, envs):
+#         cons = derive_constraints_from_q_ties(
+#             mu_sa, q, env,
+#             tie_eps=tie_eps,
+#             skip_terminals=skip_terminals,
+#             normalize=normalize,
+#             tol=tol,
+#         )
+#         H_i = [c[0] for c in cons]
+#         U_per_mdp.append(H_i)
+#         all_H.extend(H_i)
+
+#     pre = []
+#     for v in all_H:
+#         v_norm = np.linalg.norm(v)
+#         if v_norm == 0:
+#             continue
+#         is_close = any(
+#             np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
+#             for u in pre
+#         )
+#         if not is_close:
+#             pre.append(v)
+
+#     if not pre:
+#         d = SFs[0][0].shape[-1]
+#         return U_per_mdp, np.zeros((0, d))
+
+#     U_global = np.array(remove_redundant_constraints(pre, epsilon=lp_epsilon))
+#     return U_per_mdp, U_global
