@@ -2,13 +2,16 @@ import numpy as np
 import sys
 import os
 
-# ------------------------------------------------------------
-# Ensure repo root is on path
-# ------------------------------------------------------------
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.append(ROOT)
+import numpy as np
+import os
+import sys
 
+# ----------------------------
+# Project imports
+# ----------------------------
+module_path = os.path.abspath(os.path.join(".."))
+if module_path not in sys.path:
+    sys.path.append(module_path)
 # ------------------------------------------------------------
 # Imports from your repo
 # ------------------------------------------------------------
@@ -22,7 +25,7 @@ from utils import (
     generate_candidate_atoms_for_scot,
     remove_redundant_constraints,
 )
-from teaching.scot_two_stage import two_stage_scot_no_cost
+from teaching.two_stage_scot import two_stage_scot_no_cost
 from teaching import scot_greedy_family_atoms_tracked
 
 
@@ -53,9 +56,9 @@ def run_two_stage_scot_test():
     # --------------------------------------------------------
     # 1. Small test configuration
     # --------------------------------------------------------
-    n_envs = 6
+    n_envs = 5
     mdp_size = 4
-    feature_dim = 2
+    feature_dim = 3
     seed = 0
 
     rng = np.random.default_rng(seed)
@@ -123,16 +126,18 @@ def run_two_stage_scot_test():
     candidates_per_env = generate_candidate_atoms_for_scot(
         envs,
         Q_list,
-        use_q_demos=True,
-        num_q_rollouts_per_state=1,
-        q_demo_max_steps=1,
+        use_q_demos=False,
+        num_q_rollouts_per_state=0,
+        q_demo_max_steps=0,
         use_pairwise=True,
-        use_estop=True,
-        use_improvement=True,
-        n_pairwise=5,
-        n_estops=5,
-        n_improvements=5,
+        use_estop=False,
+        use_improvement=False,
+        n_pairwise=5000,
+        n_estops=0,
+        n_improvements=0,
     )
+    #print("candidates_per_env")
+    #print(candidates_per_env)
 
     # --------------------------------------------------------
     # 7. Atom constraints
@@ -150,6 +155,10 @@ def run_two_stage_scot_test():
         np.vstack([U_q_global, U_atoms_global]),
         epsilon=1e-4,
     )
+    # U_universal = remove_redundant_constraints(
+    #     U_q_global,
+    #     epsilon=1e-4,
+    # )
 
     log(f"[UNIVERSE] |U| = {len(U_universal)}\n")
 

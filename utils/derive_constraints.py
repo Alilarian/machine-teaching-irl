@@ -484,7 +484,6 @@ def derive_constraints_from_atoms(
 
     return U_per_env, U_global
 
-
 # ============================================================
 # 7. Q-only Constraint Builder
 # ============================================================

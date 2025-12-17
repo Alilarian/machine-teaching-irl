@@ -1,5 +1,5 @@
 import numpy as np
-from scot import scot_greedy_family_atoms_tracked
+from .scot import scot_greedy_family_atoms_tracked
 
 
 def _make_key(v, decimals=12):
