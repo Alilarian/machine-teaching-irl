@@ -78,16 +78,16 @@ from utils import (
     compute_successor_features_family,
     derive_constraints_from_q_family,
     derive_constraints_from_atoms,
-    generate_candidate_atoms_for_scot,
-    sample_random_atoms_like_scot,
+
     compute_Q_from_weights_with_VI,
     remove_redundant_constraints,
     parallel_value_iteration,
 )
+
+from utils.generate_feedback import generate_candidate_atoms_for_scot, sample_random_atoms_like_scot
 from teaching import scot_greedy_family_atoms_tracked
 from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
-
 
 # =============================================================================
 # 1. Ground-truth reward generator
@@ -114,7 +114,6 @@ def generate_w_true(d, mode="random_signed", seed=None):
 
     raise ValueError(f"Unknown W_TRUE generation mode: {mode}")
 
-
 # =============================================================================
 # 2. BIRL Wrapper
 # =============================================================================
@@ -122,7 +121,6 @@ def _compute_Q_wrapper(args):
     """Helper for parallel execution: (env, w, vi_epsilon)."""
     env, w, vi_eps = args
     return compute_Q_from_weights_with_VI(env, w, vi_epsilon=vi_eps)
-
 
 def birl_atomic_to_Q_lists(
     envs,
@@ -183,7 +181,6 @@ def birl_atomic_to_Q_lists(
 
     return w_map, w_mean, Q_map_list, Q_mean_list, birl
 
-
 # =============================================================================
 # 3. Regret Utilities
 # =============================================================================
@@ -200,7 +197,6 @@ def _compute_regret_wrapper(args):
         normalize_with_random_policy=normalize,
     )
     return float(r)
-
 
 def regrets_from_Q(
     envs,
@@ -222,7 +218,6 @@ def regrets_from_Q(
 
     return np.array(regrets)
 
-
 # =============================================================================
 # 4. Random baseline helpers (picklable)
 # =============================================================================
@@ -233,7 +228,6 @@ def make_random_chosen(sd, candidates_per_env, chosen_scot):
         chosen_scot=chosen_scot,
         seed=sd,
     )
-
 
 def _random_trial_worker(args):
     (
@@ -267,7 +261,6 @@ def _random_trial_worker(args):
     reg_mean = regrets_from_Q(envs, Q_rand_mean, epsilon=regret_epsilon)
 
     return reg_map, reg_mean
-
 
 # =============================================================================
 # 5. Option B: Split evaluation into SCOT-only and Random-only
@@ -312,7 +305,6 @@ def eval_scot_regret_atomic(
             # "w_scot_mean": w_scot_mean.tolist(),
         },
     }
-
 
 def eval_random_regret_atomic(
     envs,
@@ -359,7 +351,6 @@ def eval_random_regret_atomic(
         }
     }
 
-
 def run_regret_evaluation_atomic(
     envs,
     chosen_scot_flat,
@@ -402,7 +393,6 @@ def run_regret_evaluation_atomic(
         )
 
     return results
-
 
 # =============================================================================
 # 6. Main experiment
@@ -622,42 +612,67 @@ def run_universal_experiment(
     # ---------------------------------------------------
     log("[9/12] Running SCOT greedy selection...")
     t0 = time.time()
+
     chosen_scot, scot_stats, scot_constraint_sets = scot_greedy_family_atoms_tracked(
         U_universal,
         candidates_per_env,
         SFs,
         envs,
     )
+
     log(
         f"       ✔ SCOT selected {len(chosen_scot)} atoms "
         f"in {time.time() - t0:.2f}s"
     )
 
+    # ------------------------------------------
+    # Debug: print selected atoms
+    # ------------------------------------------
+    for env_idx, atom in chosen_scot:
+        print(f"[SCOT] env={env_idx}, atom={atom}")
+        print(atom.data)
 
-    for i in chosen_scot:
-        print(i)
-        print(i[1].data)
+    # ------------------------------------------
+    # Per-env stats (CORRECT STRUCTURE)
+    # ------------------------------------------
+    env_stats_summary = {}
+    num_envs_activated = scot_stats["total_activated_count"]
+
+    for env_idx in range(n_envs):
+        estats = scot_stats[env_idx]
+
+        num_atoms = len(estats["atoms"])
+        total_cov = estats["total_coverage"]
+
+        env_stats_summary[env_idx] = {
+            "num_atoms": num_atoms,
+            "total_coverage": total_cov,
+            "coverage_counts": estats["coverage_counts"],
+            "was_inspected": estats["was_inspected"],
+            "precompute_time": estats["precompute_time"],
+        }
+
+        log(
+            f"         env {env_idx:02d}: "
+            f"{num_atoms} atoms, coverage={total_cov}, "
+            f"inspected={estats['was_inspected']}"
+        )
+
+    log(
+        f"       #activated envs: "
+        f"{num_envs_activated}/{n_envs}\n"
+    )
+
+    # ------------------------------------------
+    # Flatten for BIRL (already correct format)
+    # ------------------------------------------
+    chosen_scot_flat = list(chosen_scot)
+
 
 
     # Env activation summary
     log("       SCOT env coverage summary (per-env #selected):")
-    num_envs_activated = 0
-    env_stats_summary = {}
-    for env_idx, stats in scot_stats.items():
-        num_atoms = len(stats["atoms"])
-        total_cov = stats["total_coverage"]
-        if num_atoms > 0:
-            num_envs_activated += 1
-        env_stats_summary[env_idx] = {
-            "num_atoms": num_atoms,
-            "total_coverage": total_cov,
-            "indices": stats["indices"],
-            "coverage_counts": stats["coverage_counts"],
-        }
-        log(f"         env {env_idx:02d}: {num_atoms} atoms, coverage={total_cov}")
-    log(f"       #activated envs: {num_envs_activated}/{n_envs}\n")
 
-        
     # BIRL expects flattened: (env_idx, atom)
     chosen_scot_flat = [(i, atom) for (i, atom) in chosen_scot]
 
@@ -837,7 +852,6 @@ def run_universal_experiment(
     log("======================================================\n")
 
     return results, out_dir
-
 
 # ============================================================
 # CLI ENTRY POINT (argparse)

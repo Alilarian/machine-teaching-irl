@@ -90,7 +90,6 @@ def _fix_budget_sum(budgets: np.ndarray, total: int, rng: np.random.Generator) -
 
     return budgets
 
-
 def dirichlet_env_budgets(
     total: int,
     n_envs: int,
@@ -131,7 +130,6 @@ def dirichlet_env_budgets(
         # else impossible; keep zeros
     return budgets
 
-
 def sparse_poisson_env_budgets(
     total: int,
     n_envs: int,
@@ -170,7 +168,6 @@ def sparse_poisson_env_budgets(
     budgets = _fix_budget_sum(budgets, total, rng)
     return budgets
 
-
 def allocate_budgets(
     total: int,
     n_envs: int,
@@ -195,7 +192,6 @@ def allocate_budgets(
         return budgets
 
     raise ValueError(f"Unknown budget allocation method: {method}")
-
 
 # ============================================================
 # 3. Trajectory utilities (ALL randomness uses rng)

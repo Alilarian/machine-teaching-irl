@@ -1,72 +1,60 @@
 import numpy as np
-from .scot import scot_greedy_family_atoms_tracked
+from teaching import scot_greedy_family_atoms_tracked
 
+# ------------------------------------------------------------
+# Stage 0: Build MDP-level coverage
+# ------------------------------------------------------------
 
-def _make_key(v, decimals=12):
-    n = np.linalg.norm(v)
-    if n == 0 or not np.isfinite(n):
-        return ("ZERO",)
-    return tuple(np.round(v / n, decimals))
-
-def build_mdp_coverage_from_constraints(
-    U_per_env,
-    U_global,
-    *,
-    decimals=12,
-):
+def build_mdp_coverage_from_constraints(U_per_env, U_universal, epsilon=1e-4):
     """
-    U_per_env[k] : list/array of constraint vectors for env k
-    U_global     : global constraint array
-
-    Returns:
-        mdp_cov[k] : set of indices into U_global
+    Maps which indices of the Universal set are covered by each MDP.
     """
-    key_to_uix = {}
-    for i, v in enumerate(U_global):
-        key_to_uix.setdefault(_make_key(v, decimals), []).append(i)
-
     mdp_cov = []
     for H_k in U_per_env:
-        cov_k = set()
-        for v in H_k:
-            k = _make_key(v, decimals)
-            if k in key_to_uix:
-                cov_k.update(key_to_uix[k])
-        mdp_cov.append(cov_k)
-
+        indices = set()
+        if len(H_k) > 0:
+            for row in H_k:
+                diff = np.linalg.norm(U_universal - row, axis=1)
+                matches = np.where(diff < epsilon)[0]
+                indices.update(matches.tolist())
+        mdp_cov.append(indices)
     return mdp_cov
 
-def greedy_select_mdps_no_cost(mdp_cov, universe_size):
-    """
-    Select MDPs greedily by marginal constraint coverage.
+# ------------------------------------------------------------
+# Stage 1: Unweighted greedy MDP selection
+# ------------------------------------------------------------
 
-    Returns:
-        selected_mdps : list[int]
-        stats         : dict
+def greedy_select_mdps_unweighted(mdp_cov, universe_size):
+    """
+    Greedy set cover over MDPs with NO cost.
+    Selects the MDP that covers the largest number of uncovered constraints.
     """
     universe = set(range(universe_size))
     covered = set()
     selected = []
 
-    stats = {
-        "order": [],
-        "per_mdp": {},
-        "final_covered": 0,
-    }
+    # Metrics
+    s1_iterations = 0
+    s1_shallow_checks = 0
 
     while covered != universe:
-        best_gain = 0
+        best_gain = -1
         best_k = None
         best_new = None
+        s1_iterations += 1
 
         for k, cov_k in enumerate(mdp_cov):
             if k in selected:
                 continue
-            new = cov_k - covered
-            if len(new) > best_gain:
-                best_gain = len(new)
+
+            s1_shallow_checks += 1
+            new_elements = cov_k - covered
+            gain = len(new_elements)
+
+            if gain > best_gain:
+                best_gain = gain
                 best_k = k
-                best_new = new
+                best_new = new_elements
 
         if best_k is None or best_gain == 0:
             break
@@ -74,17 +62,16 @@ def greedy_select_mdps_no_cost(mdp_cov, universe_size):
         selected.append(best_k)
         covered |= best_new
 
-        stats["order"].append(best_k)
-        stats["per_mdp"][best_k] = {
-            "gain": best_gain,
-            "cumulative": len(covered),
-        }
+    return selected, {
+        "s1_iterations": s1_iterations,
+        "s1_shallow_checks": s1_shallow_checks,
+    }
 
-    stats["final_covered"] = len(covered)
-    return selected, stats
+# ------------------------------------------------------------
+# Two-stage SCOT (cost-free)
+# ------------------------------------------------------------
 
-
-def two_stage_scot_no_cost(
+def two_stage_scot(
     *,
     U_universal,
     U_per_env_atoms,
@@ -93,70 +80,79 @@ def two_stage_scot_no_cost(
     SFs,
     envs,
 ):
-    """
-    Full two-stage SCOT:
-      1) MDP selection via constraint coverage
-      2) SCOT greedy restricted to selected MDPs
-    """
+    # --------------------------------------------------------
+    # Stage 0: Constraint aggregation per MDP (ROBUST)
+    # --------------------------------------------------------
+    n_envs = len(envs)
+    
+    d = np.array(U_universal).shape[1]
 
-    # --------------------------------------------------
-    # Stage 0: combine per-env constraints
-    # --------------------------------------------------
     U_per_env = []
-    for H_a, H_q in zip(U_per_env_atoms, U_per_env_q):
-        if len(H_a) and len(H_q):
-            U_per_env.append(np.vstack([H_a, H_q]))
-        elif len(H_a):
-            U_per_env.append(H_a)
-        elif len(H_q):
-            U_per_env.append(H_q)
+
+    for k in range(n_envs):
+        # Handle possibly-missing atom constraints
+        if U_per_env_atoms is not None and k < len(U_per_env_atoms):
+            H_a = U_per_env_atoms[k]
         else:
-            U_per_env.append(np.zeros((0, U_universal.shape[1])))
+            H_a = np.zeros((0, d))
 
-    # --------------------------------------------------
-    # Stage 1: MDP selection
-    # --------------------------------------------------
-    mdp_cov = build_mdp_coverage_from_constraints(
-        U_per_env,
-        U_universal,
-    )
+        # Handle possibly-missing Q constraints
+        if U_per_env_q is not None and k < len(U_per_env_q):
+            H_q = U_per_env_q[k]
+        else:
+            H_q = np.zeros((0, d))
 
-    selected_mdps, mdp_stats = greedy_select_mdps_no_cost(
+        # Combine safely
+        if len(H_a) > 0 and len(H_q) > 0:
+            combined = np.vstack([H_a, H_q])
+        elif len(H_a) > 0:
+            combined = H_a
+        elif len(H_q) > 0:
+            combined = H_q
+        else:
+            combined = np.zeros((0, d))
+
+        U_per_env.append(combined)
+
+    mdp_cov = build_mdp_coverage_from_constraints(U_per_env, U_universal)
+
+    # --------------------------------------------------------
+    # Stage 1: Unweighted MDP pool selection
+    # --------------------------------------------------------
+    selected_mdps, s1_stats = greedy_select_mdps_unweighted(
         mdp_cov,
-        universe_size=len(U_universal),
+        len(U_universal),
     )
 
-    # Fallback safety
-    if len(selected_mdps) == 0:
-        selected_mdps = list(range(len(envs)))
+    # --------------------------------------------------------
+    # Stage 2: Atomic SCOT restricted to selected MDPs
+    # --------------------------------------------------------
+    pool_atoms = [candidates_per_env[k] for k in selected_mdps]
+    pool_SFs   = [SFs[k] for k in selected_mdps]
+    pool_envs  = [envs[k] for k in selected_mdps]
 
-    # --------------------------------------------------
-    # Stage 2: SCOT on selected MDPs
-    # --------------------------------------------------
-    cand_sel = [candidates_per_env[k] for k in selected_mdps]
-    SFs_sel  = [SFs[k] for k in selected_mdps]
-    envs_sel = [envs[k] for k in selected_mdps]
-
-    chosen_local, env_stats_local, chosen_constraints = scot_greedy_family_atoms_tracked(
+    chosen_local, pool_stats, _ = scot_greedy_family_atoms_tracked(
         U_universal,
-        cand_sel,
-        SFs_sel,
-        envs_sel,
+        pool_atoms,
+        pool_SFs,
+        pool_envs,
     )
 
-    # Remap env indices back to original
-    chosen_global = [
-        (selected_mdps[env_idx], atom)
-        for env_idx, atom in chosen_local
-    ]
+    # Map back to global MDP indices
+    chosen_global = []
+    for local_env_idx, atom in chosen_local:
+        global_env_idx = selected_mdps[local_env_idx]
+        chosen_global.append((global_env_idx, atom))
 
-    activated_envs = sorted({i for i, _ in chosen_global})
+    activated_envs = sorted({k for k, _ in chosen_global})
+    waste = len(selected_mdps) - len(activated_envs)
 
     return {
-        "selected_mdps": selected_mdps,
+        "chosen": chosen_global,
+        "s1_iterations": s1_stats["s1_iterations"],
+        "s1_checks": s1_stats["s1_shallow_checks"],
+        "s2_iterations": len(chosen_global),
+        #"s2_deep_checks": pool_stats["total_deep_atom_evals"],
         "activated_envs": activated_envs,
-        "chosen_atoms": chosen_global,
-        "env_stats": env_stats_local,
-        "chosen_constraints": chosen_constraints,
-        "mdp_stats": mdp_stats,
+        "waste": waste,
     }

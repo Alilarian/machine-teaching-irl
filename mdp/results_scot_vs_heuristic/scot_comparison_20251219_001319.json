@@ -1,0 +1,36 @@
+{
+  "args": {
+    "n_envs": 3,
+    "mdp_size": 3,
+    "feature_dim": 4,
+    "total_budget": 20,
+    "demo_env_fraction": 0.05,
+    "seed": 42,
+    "heuristic_k": 10,
+    "top_frac": 0.2,
+    "result_dir": "results_scot_vs_heuristic"
+  },
+  "U_global_size": 7,
+  "heuristic_ranking": {
+    "0": 8,
+    "2": 6,
+    "1": 1
+  },
+  "selected_envs": [
+    0
+  ],
+  "naive": {
+    "atoms": 5,
+    "inspected_envs": 3,
+    "activated_envs": 2,
+    "final_coverage": 5,
+    "runtime": 0.0016391277313232422
+  },
+  "heuristic": {
+    "atoms": 2,
+    "inspected_envs": 1,
+    "activated_envs": 1,
+    "final_coverage": 2,
+    "runtime": 0.029644250869750977
+  }
+}

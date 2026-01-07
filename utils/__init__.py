@@ -6,7 +6,7 @@ from .common_helper import *
 from .env_helper import *
 
 # Feedback simulation
-from .generate_feedback import (
+from .feedback_budgeting import (
     Atom,
     generate_random_trajectory,
     generate_valid_trajectories,
@@ -21,9 +21,14 @@ from .generate_feedback import (
     pairwise_to_atoms,
     estops_to_atoms,
     corrections_to_atoms,
-    sample_random_atoms_like_scot,
+    #sample_random_atoms_like_scot,
+    GenerationSpec, DemoSpec, FeedbackSpec
 
 )
+
+from .generate_feedback import sample_random_atoms_like_scot
+
+#from .feedback_budgeting import GenerationSpec, DemoSpec, FeedbackSpec
 
 # Successor features
 from .successor_features import (

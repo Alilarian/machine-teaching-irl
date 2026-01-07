@@ -1,0 +1,143 @@
+{
+    "SCOT": {
+        "regret_map": [
+            12.85188763100463,
+            11.514603033766214,
+            11.619747038946443,
+            10.977064914148436,
+            11.167474541984191,
+            11.437005548183663,
+            11.691684213991323,
+            10.805856783782225,
+            11.423715026156522,
+            11.20064379298966
+        ],
+        "regret_mean": [
+            12.752239469732586,
+            11.481386980008864,
+            11.487547144992199,
+            10.943848860391093,
+            11.167474541984191,
+            11.009827200447972,
+            11.493713211992159,
+            10.805856783782225,
+            11.357282918641829,
+            11.134211685474966
+        ]
+    },
+    "BIRL": {
+        "SCOT_accept_rate": 0.086
+    },
+    "metadata": {
+        "W_TRUE": [
+            0.18817375576319426,
+            -0.6422275881713418,
+            0.4634306030554158,
+            0.5808325393650813
+        ],
+        "experiment_dir": "results_of_scot/exp_env10_size5_fd4_fb0_20251219-022802",
+        "n_envs": 10,
+        "mdp_size": 5,
+        "feature_dim": 4,
+        "w_true_mode": "random_signed",
+        "feedback": {
+            "demos": true,
+            "pairwise": false,
+            "estop": false,
+            "improvement": false,
+            "feedback_count": 0
+        },
+        "random_trials": 0,
+        "seed": 42,
+        "coverage": {
+            "num_universal": 5,
+            "num_scot_constraints": 15,
+            "num_covered": 5,
+            "num_missed": 0,
+            "coverage_pct": 100.0
+        },
+        "scot_env_stats": {
+            "0": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "coverage_counts": [
+                    1
+                ],
+                "was_inspected": true,
+                "precompute_time": 0.0018777847290039062
+            },
+            "1": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "coverage_counts": [
+                    1
+                ],
+                "was_inspected": true,
+                "precompute_time": 0.001699209213256836
+            },
+            "2": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "coverage_counts": [],
+                "was_inspected": true,
+                "precompute_time": 0.001646280288696289
+            },
+            "3": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "coverage_counts": [
+                    1
+                ],
+                "was_inspected": true,
+                "precompute_time": 0.0017099380493164062
+            },
+            "4": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "coverage_counts": [],
+                "was_inspected": true,
+                "precompute_time": 0.001580953598022461
+            },
+            "5": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "coverage_counts": [
+                    1
+                ],
+                "was_inspected": true,
+                "precompute_time": 0.001573324203491211
+            },
+            "6": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "coverage_counts": [],
+                "was_inspected": true,
+                "precompute_time": 0.0017230510711669922
+            },
+            "7": {
+                "num_atoms": 1,
+                "total_coverage": 1,
+                "coverage_counts": [
+                    1
+                ],
+                "was_inspected": true,
+                "precompute_time": 0.001600503921508789
+            },
+            "8": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "coverage_counts": [],
+                "was_inspected": true,
+                "precompute_time": 0.001378774642944336
+            },
+            "9": {
+                "num_atoms": 0,
+                "total_coverage": 0,
+                "coverage_counts": [],
+                "was_inspected": true,
+                "precompute_time": 0.001544952392578125
+            }
+        },
+        "num_envs_activated": 5
+    }
+}

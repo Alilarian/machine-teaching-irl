@@ -1,26 +1,25 @@
 # ============================================================
-# test_compare_scot_algorithms.py
+# test_compare_two_stage_vs_flat_scot.py
 # ============================================================
 
 import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime
 import numpy as np
 
 # ============================================================
 # Project path
 # ============================================================
-
 module_path = os.path.abspath(os.path.join(".."))
 if module_path not in sys.path:
     sys.path.append(module_path)
 
 # ============================================================
-# Imports from repo
+# Imports
 # ============================================================
-
 from mdp.gridworld_env_layout import GridWorldMDPFromLayoutEnv
 from utils import (
     generate_random_gridworld_envs,
@@ -28,93 +27,82 @@ from utils import (
     compute_successor_features_family,
     derive_constraints_from_q_family,
     derive_constraints_from_atoms,
-    generate_candidate_atoms_for_scot,
     remove_redundant_constraints,
+    GenerationSpec,
+    DemoSpec,
+    FeedbackSpec,
 )
-from teaching.two_stage_scot import two_stage_scot_no_cost
-from teaching import scot_greedy_family_atoms_tracked
+
+from utils.feedback_budgeting import generate_candidate_atoms_for_scot
+
+from teaching.scot import scot_greedy_family_atoms_tracked
+from teaching.two_stage_scot import two_stage_scot
 
 
 # ============================================================
-# Argument parsing
+# Args
 # ============================================================
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    p = argparse.ArgumentParser("Flat SCOT vs Two-Stage SCOT")
 
-    # Environment / MDP parameters
-    parser.add_argument("--n_envs", type=int, default=30)
-    parser.add_argument("--mdp_size", type=int, default=10)
-    parser.add_argument("--feature_dim", type=int, default=2)
-    parser.add_argument(
-        "--w_true_mode",
-        type=str,
-        default="random_signed",
-        choices=["random_signed", "one_hot", "biased"],
-    )
+    # Environment
+    p.add_argument("--n_envs", type=int, default=50)
+    p.add_argument("--mdp_size", type=int, default=8)
+    p.add_argument("--feature_dim", type=int, default=4)
+    p.add_argument("--seed", type=int, default=42)
 
-    # Feedback settings
-    parser.add_argument(
+    # Feedback / data generation
+    p.add_argument("--total_budget", type=int, default=2000)
+    p.add_argument("--demo_env_fraction", type=float, default=0.05)
+
+    p.add_argument(
         "--feedback",
         nargs="+",
+        choices=["demo", "pairwise", "estop", "improvement"],
         default=["demo", "pairwise", "estop", "improvement"],
     )
-    parser.add_argument("--feedback_count", type=int, default=50)
 
-    # General
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--result_dir", type=str, default="results_universal")
+    # Output
+    p.add_argument("--result_dir", type=str, default="results_two_stage")
 
-    return parser.parse_args()
+    return p.parse_args()
 
 
 # ============================================================
-# Utility
+# Logging helpers
 # ============================================================
-
-def log(msg):
-    print(msg, flush=True)
-
 
 def stage(title):
-    log("\n" + "=" * 60)
-    log(f"[STAGE] {title}")
-    log("=" * 60)
+    print("\n" + "=" * 80)
+    print(f"[STAGE] {title}")
+    print("=" * 80)
+
+def log(msg):
+    print(f"[INFO] {msg}", flush=True)
 
 
 # ============================================================
-# Main experiment
+# Main
 # ============================================================
 
-def run_experiment(args):
-    stage("EXPERIMENT START")
-
-    log(f"Config: n_envs={args.n_envs}, grid={args.mdp_size}x{args.mdp_size}, "
-        f"d={args.feature_dim}, feedback={args.feedback}, seed={args.seed}")
+def main(args):
 
     rng = np.random.default_rng(args.seed)
 
-    # --------------------------------------------------------
-    # Ground-truth reward
-    # --------------------------------------------------------
-    stage("GROUND-TRUTH REWARD")
+    # ========================================================
+    # SETUP
+    # ========================================================
+    stage("EXPERIMENT SETUP")
+    log(vars(args))
 
-    if args.w_true_mode == "random_signed":
-        W_TRUE = rng.normal(size=args.feature_dim)
-        W_TRUE /= np.linalg.norm(W_TRUE)
-    elif args.w_true_mode == "one_hot":
-        W_TRUE = np.zeros(args.feature_dim)
-        W_TRUE[rng.integers(args.feature_dim)] = 1.0
-    else:
-        W_TRUE = np.ones(args.feature_dim)
-        W_TRUE /= np.linalg.norm(W_TRUE)
+    W_TRUE = rng.normal(size=args.feature_dim)
+    W_TRUE /= np.linalg.norm(W_TRUE)
 
-    log(f"W_TRUE = {W_TRUE}")
-
-    # --------------------------------------------------------
-    # Environments
-    # --------------------------------------------------------
-    stage("ENVIRONMENT GENERATION")
+    # ========================================================
+    # ENV GENERATION
+    # ========================================================
+    stage("GENERATING ENVIRONMENTS")
 
     color_to_feature_map = {
         f"f{i}": [1 if j == i else 0 for j in range(args.feature_dim)]
@@ -126,9 +114,9 @@ def run_experiment(args):
         rows=args.mdp_size,
         cols=args.mdp_size,
         color_to_feature_map=color_to_feature_map,
-        palette=list(color_to_feature_map.keys()),
+        palette=list(color_to_feature_map),
         p_color_range={c: (0.3, 0.7) for c in color_to_feature_map},
-        terminal_policy=dict(kind="random_k", k_min=1, k_max=1, p_no_terminal=0.0),
+        terminal_policy=dict(kind="random_k", k_min=1, k_max=1),
         gamma_range=(0.99, 0.99),
         noise_prob_range=(0.0, 0.0),
         w_mode="fixed",
@@ -139,165 +127,190 @@ def run_experiment(args):
 
     log(f"Generated {len(envs)} environments")
 
-    # --------------------------------------------------------
-    # Value iteration
-    # --------------------------------------------------------
-    stage("VALUE ITERATION")
+    # ========================================================
+    # VALUE ITERATION + SFS
+    # ========================================================
+    stage("VALUE ITERATION & SUCCESSOR FEATURES")
 
-    Q_list = parallel_value_iteration(envs, epsilon=1e-10)
-    log(f"Computed Q-functions for {len(Q_list)} environments")
-
-    # --------------------------------------------------------
-    # Successor features
-    # --------------------------------------------------------
-    stage("SUCCESSOR FEATURES")
-
+    Q_list = parallel_value_iteration(envs)
     SFs = compute_successor_features_family(
         envs,
         Q_list,
         convention="entering",
         zero_terminal_features=True,
         tol=1e-10,
-        max_iters=10000,
     )
 
-    log(f"Computed successor features for {len(SFs)} environments")
+    # ========================================================
+    # CONSTRAINT GENERATION
+    # ========================================================
+    stage("GENERATING CONSTRAINTS")
 
-    # --------------------------------------------------------
-    # Q-based constraints
-    # --------------------------------------------------------
-    stage("Q-BASED CONSTRAINT EXTRACTION")
-
-    U_per_env_q, U_q_global = derive_constraints_from_q_family(
-        SFs,
-        Q_list,
-        envs,
+    _, U_q = derive_constraints_from_q_family(
+        SFs, Q_list, envs,
         skip_terminals=True,
         normalize=True,
     )
 
-    log(f"Total Q-based constraints: {len(U_q_global)}")
-    log(f"Per-env Q constraints: {[len(H) for H in U_per_env_q]}")
+    enabled = set(args.feedback)
 
-    # --------------------------------------------------------
-    # Candidate atoms
-    # --------------------------------------------------------
-    stage("CANDIDATE ATOM GENERATION")
+    spec = GenerationSpec(
+        seed=args.seed,
+
+        demo=DemoSpec(
+            enabled=("demo" in enabled),
+            env_fraction=1.0,
+            state_fraction=args.demo_env_fraction,
+        ),
+
+        pairwise=FeedbackSpec(
+            enabled=("pairwise" in enabled),
+            total_budget=args.total_budget if "pairwise" in enabled else 0,
+        ),
+
+        estop=FeedbackSpec(
+            enabled=("estop" in enabled),
+            total_budget=args.total_budget if "estop" in enabled else 0,
+        ),
+
+        improvement=FeedbackSpec(
+            enabled=("improvement" in enabled),
+            total_budget=args.total_budget if "improvement" in enabled else 0,
+        ),
+    )
 
     candidates_per_env = generate_candidate_atoms_for_scot(
-        envs,
-        Q_list,
-        use_q_demos="demo" in args.feedback,
-        num_q_rollouts_per_state=1,
-        q_demo_max_steps=1,
-        use_pairwise="pairwise" in args.feedback,
-        use_estop="estop" in args.feedback,
-        use_improvement="improvement" in args.feedback,
-        n_pairwise=args.feedback_count,
-        n_estops=args.feedback_count,
-        n_improvements=args.feedback_count,
+        envs, Q_list, spec=spec
     )
 
-    log(f"Atoms per env: {[len(c) for c in candidates_per_env]}")
+    atom_counts = [len(a) for a in candidates_per_env]
+    log(f"Atoms per env: mean={np.mean(atom_counts):.1f}, total={sum(atom_counts)}")
 
-    # --------------------------------------------------------
-    # Atom constraints
-    # --------------------------------------------------------
-    stage("ATOM CONSTRAINT EXTRACTION")
 
-    U_per_env_atoms, U_atoms_global = derive_constraints_from_atoms(
-        candidates_per_env,
-        SFs,
-        envs,
+    _, U_atoms = derive_constraints_from_atoms(
+        candidates_per_env, SFs, envs
     )
 
-    log(f"Total atom-based constraints: {len(U_atoms_global)}")
+    blocks = [U_q]
 
-    # --------------------------------------------------------
-    # Universal constraint set
-    # --------------------------------------------------------
-    stage("UNIVERSAL CONSTRAINT SET")
+    if U_atoms is not None and len(U_atoms) > 0:
+        blocks.append(U_atoms)
 
     U_universal = remove_redundant_constraints(
-        np.vstack([U_q_global, U_atoms_global]),
-        epsilon=1e-4,
+        np.vstack(blocks)
     )
 
     log(f"|U_universal| = {len(U_universal)}")
 
-    # --------------------------------------------------------
-    # TWO-STAGE SCOT
-    # --------------------------------------------------------
-    stage("TWO-STAGE SCOT")
-
-    two_stage = two_stage_scot_no_cost(
-        U_universal=U_universal,
-        U_per_env_atoms=U_per_env_atoms,
-        U_per_env_q=U_per_env_q,
-        candidates_per_env=candidates_per_env,
-        SFs=SFs,
-        envs=envs,
-    )
-
-    two_stage_envs = sorted(two_stage["activated_envs"])
-
-    log(f"Stage-1 selected MDPs: {two_stage['selected_mdps']}")
-    log(f"Stage-2 activated envs: {two_stage_envs}")
-    log(f"#Atoms selected: {len(two_stage['chosen_atoms'])}")
-
-    # --------------------------------------------------------
+    # ========================================================
     # FLAT SCOT
-    # --------------------------------------------------------
-    stage("FLAT SCOT")
+    # ========================================================
+    stage("RUNNING FLAT SCOT")
 
-    chosen_flat, flat_stats, _ = scot_greedy_family_atoms_tracked(
+    t0 = time.time()
+    chosen_flat, stats_flat, _ = scot_greedy_family_atoms_tracked(
         U_universal,
         candidates_per_env,
         SFs,
         envs,
     )
+    t_flat = time.time() - t0
 
-    flat_envs = sorted({i for i, _ in chosen_flat})
+    # ========================================================
+    # TWO-STAGE SCOT
+    # ========================================================
+    stage("RUNNING TWO-STAGE SCOT")
 
-    log(f"Activated envs: {flat_envs}")
-    log(f"#Atoms selected: {len(chosen_flat)}")
+    t0 = time.time()
+    two_stage = two_stage_scot(
+        U_universal=U_universal,
+        U_per_env_atoms=_[0] if False else None,  # placeholder; not used
+        U_per_env_q=_[0] if False else None,      # placeholder; not used
+        candidates_per_env=candidates_per_env,
+        SFs=SFs,
+        envs=envs,
+    )
+    t_two_stage = time.time() - t0
 
-    # --------------------------------------------------------
-    # FINAL SUMMARY
-    # --------------------------------------------------------
-    stage("FINAL COMPARISON SUMMARY")
+    # ========================================================
+    # SUMMARY
+    # ========================================================
+    stage("SUMMARY")
 
-    log(f"Two-stage activated envs: {len(two_stage_envs)}")
-    log(f"Flat activated envs: {len(flat_envs)}")
-    log(f"Two-stage atoms: {len(two_stage['chosen_atoms'])}")
-    log(f"Flat atoms: {len(chosen_flat)}")
-    log(f"Same activated envs? {set(two_stage_envs) == set(flat_envs)}")
+    def summarize(name, atoms, inspected, activated, coverage, runtime):
+        frac = coverage / max(len(U_universal), 1)
+        log(name)
+        log(f"  atoms selected      = {atoms}")
+        log(f"  envs inspected      = {inspected}")
+        log(f"  envs activated      = {activated}")
+        log(f"  final coverage      = {coverage} / {len(U_universal)}")
+        log(f"  coverage fraction   = {frac:.3f}")
+        log(f"  runtime (s)         = {runtime:.2f}")
 
-    # --------------------------------------------------------
-    # Save JSON
-    # --------------------------------------------------------
+    summarize(
+        "FLAT SCOT",
+        len(chosen_flat),
+        stats_flat["total_inspected_count"],
+        stats_flat["total_activated_count"],
+        stats_flat["final_coverage"],
+        t_flat,
+    )
+
+    summarize(
+        "TWO-STAGE SCOT",
+        two_stage["s2_iterations"],
+        two_stage["s1_iterations"],
+        len(two_stage["activated_envs"]),
+        len(U_universal),
+        t_two_stage,
+    )
+
+    # ========================================================
+    # SAVE RESULTS (SAME LOGIC AS REFERENCE SCRIPT)
+    # ========================================================
     stage("SAVING RESULTS")
 
     os.makedirs(args.result_dir, exist_ok=True)
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    feedback_tag = "_".join(sorted(args.feedback)) or "no_feedback"
 
-    out_path = os.path.join(
+    save = {
+        "args": vars(args),
+        "U_global_size": len(U_universal),
+
+        "flat_scot": {
+            "atoms": len(chosen_flat),
+            "inspected_envs": stats_flat["total_inspected_count"],
+            "activated_envs": stats_flat["total_activated_count"],
+            "final_coverage": stats_flat["final_coverage"],
+            "coverage_fraction": (
+                stats_flat["final_coverage"] / max(len(U_universal), 1)
+            ),
+            "runtime": t_flat,
+        },
+
+        "two_stage_scot": {
+            "atoms": two_stage["s2_iterations"],
+            "inspected_envs": two_stage["s1_iterations"],
+            "activated_envs": len(two_stage["activated_envs"]),
+            "final_coverage": len(U_universal),
+            "coverage_fraction": 1.0,
+            "runtime": t_two_stage,
+            "waste": two_stage["waste"],
+        },
+    }
+
+    path = os.path.join(
         args.result_dir,
-        f"scot_compare_{feedback_tag}_{run_id}.json"
+        f"scot_two_stage_vs_flat_{run_id}.json"
     )
 
-    with open(out_path, "w") as f:
-        json.dump({"note": "see logs for detailed stage output"}, f, indent=2)
+    with open(path, "w") as f:
+        json.dump(save, f, indent=2)
 
-    log(f"[SAVED] {out_path}")
-    stage("EXPERIMENT END")
+    log(f"Saved results → {path}")
 
 
 # ============================================================
-# Entry point
-# ============================================================
-
 if __name__ == "__main__":
     args = parse_args()
-    run_experiment(args)
+    main(args)

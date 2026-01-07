@@ -1,0 +1,67 @@
+{
+  "args": {
+    "n_envs": 20,
+    "mdp_size": 5,
+    "feature_dim": 4,
+    "total_budget": 100,
+    "demo_env_fraction": 1.0,
+    "seed": 42,
+    "feedback": [
+      "pairwise"
+    ],
+    "heuristic_k": 100,
+    "top_frac": 0.5,
+    "result_dir": "results_comparison"
+  },
+  "U_global_size": 7,
+  "heuristic_ranking": {
+    "6": 11,
+    "15": 8,
+    "4": 6,
+    "5": 6,
+    "7": 6,
+    "18": 5,
+    "9": 4,
+    "19": 4,
+    "1": 2,
+    "0": 0,
+    "2": 0,
+    "3": 0,
+    "8": 0,
+    "10": 0,
+    "11": 0,
+    "12": 0,
+    "13": 0,
+    "14": 0,
+    "16": 0,
+    "17": 0
+  },
+  "selected_envs": [
+    6,
+    15,
+    4,
+    5,
+    7,
+    18,
+    9,
+    19,
+    1,
+    0
+  ],
+  "naive": {
+    "atoms": 2,
+    "inspected_envs": 9,
+    "activated_envs": 2,
+    "final_coverage": 2,
+    "coverage_fraction": 0.2857142857142857,
+    "runtime": 0.0067577362060546875
+  },
+  "heuristic": {
+    "atoms": 2,
+    "inspected_envs": 10,
+    "activated_envs": 2,
+    "final_coverage": 2,
+    "coverage_fraction": 0.2857142857142857,
+    "runtime": 0.14945387840270996
+  }
+}

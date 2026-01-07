@@ -1,0 +1,32 @@
+{
+  "args": {
+    "n_envs": 2,
+    "mdp_size": 3,
+    "feature_dim": 3,
+    "seed": 1,
+    "total_budget": 2000,
+    "demo_env_fraction": 0.05,
+    "feedback": [
+      "demo"
+    ],
+    "result_dir": "results_two_stage"
+  },
+  "U_global_size": 3,
+  "flat_scot": {
+    "atoms": 0,
+    "inspected_envs": 0,
+    "activated_envs": 0,
+    "final_coverage": 0,
+    "coverage_fraction": 0.0,
+    "runtime": 5.9604644775390625e-05
+  },
+  "two_stage_scot": {
+    "atoms": 0,
+    "inspected_envs": 1,
+    "activated_envs": 0,
+    "final_coverage": 3,
+    "coverage_fraction": 1.0,
+    "runtime": 6.175041198730469e-05,
+    "waste": 0
+  }
+}

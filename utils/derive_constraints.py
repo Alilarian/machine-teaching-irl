@@ -578,24 +578,6 @@ def derive_constraints_from_q_family(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # def derive_constraints_from_q_family(
 #     SFs,
 #     Q_list,

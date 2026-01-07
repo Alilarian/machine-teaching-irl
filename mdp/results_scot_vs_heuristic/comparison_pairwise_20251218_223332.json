@@ -1,0 +1,39 @@
+{
+  "args": {
+    "n_envs": 100,
+    "mdp_size": 4,
+    "feature_dim": 4,
+    "feedback": [
+      "pairwise"
+    ],
+    "total_budget": 1000,
+    "demo_env_fraction": 0.0,
+    "pairwise_alloc_method": "dirichlet",
+    "pairwise_alpha": 0.7,
+    "estop_alloc_method": "sparse_poisson",
+    "estop_p_active": 0.05,
+    "seed": 42,
+    "result_dir": "results_scot_vs_heuristic",
+    "sample_size": 10,
+    "initial_k": 3,
+    "increment": 2
+  },
+  "W_TRUE": [
+    0.18817375576319426,
+    -0.6422275881713418,
+    0.4634306030554158,
+    0.5808325393650813
+  ],
+  "n_envs": 100,
+  "U_universal_size": 7,
+  "results": {
+    "naive": {
+      "runtime": 0.6523044109344482,
+      "solution_size": 7,
+      "activated_envs": 6,
+      "inspected_envs": 100,
+      "full_coverage": true,
+      "stats": {
+        "0": {
+          "atoms": [
+            
