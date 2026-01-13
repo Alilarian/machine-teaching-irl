@@ -365,7 +365,6 @@ def generate_q_optimal_trajectories(
 
     return trajectories
 
-
 # ============================================================
 # 5. Improvements / corrections (reproducible)
 # ============================================================
@@ -548,7 +547,7 @@ class GenerationSpec:
     improvement: FeedbackSpec = FeedbackSpec(enabled=False, total_budget=0)
 
     # base trajectory pool (used by pairwise/estop/improvement)
-    base_min_length: int = 3
+    base_min_length: int = 2
     base_max_horizon: int = 100
     base_threads: int = 8
 

@@ -35,7 +35,7 @@ from utils import (
 
 from utils.successor_features import max_q_sa_pairs
 from utils.common_helper import calculate_expected_value_difference
-from utils.generate_feedback import generate_candidate_atoms_for_scot
+from utils.feedback_budgeting import generate_candidate_atoms_for_scot
 from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
 
@@ -77,9 +77,10 @@ def birl_atomic_to_Q_lists(
         beta_pairwise=beta,
         beta_estop=beta,
         beta_improvement=beta,
+        
     )
 
-    birl.run_mcmc(samples=samples, stepsize=stepsize)
+    birl.run_mcmc(samples=samples, stepsize=stepsize, adaptive=False, normalize=True)
 
     w_map = birl.get_map_solution()
     w_mean = birl.get_mean_solution(burn_frac=burn_frac, skip_rate=skip_rate)
@@ -107,7 +108,6 @@ def regrets_from_Q(envs, Q_list, epsilon=1e-4):
         regrets.append(float(r))
     return np.asarray(regrets)
 
-
 # =============================================================================
 # RANDOM BASELINE — GLOBAL ATOM POOL
 # =============================================================================
@@ -127,11 +127,11 @@ def sample_random_atoms_global_pool(
     idxs = rng.choice(len(pool), size=n_to_pick, replace=False)
     return [pool[i] for i in idxs]
 
-
 def run_random_trials(
     envs,
     candidates_per_env,
     n_to_pick,
+    seed,
     *,
     trials,
     birl_kwargs,
@@ -142,7 +142,7 @@ def run_random_trials(
         chosen_rand = sample_random_atoms_global_pool(
             candidates_per_env,
             n_to_pick,
-            seed=sd,
+            seed=sd + seed,
         )
 
         Q_map, _ = birl_atomic_to_Q_lists(
@@ -155,7 +155,6 @@ def run_random_trials(
         all_regrets.append(reg)
 
     return np.vstack(all_regrets)
-
 
 # =============================================================================
 # MAIN EXPERIMENT
@@ -206,7 +205,6 @@ def run_experiment(
         seed=seed,
         GridEnvClass=GridWorldMDPFromLayoutEnv,
     )
-
     # --------------------------------------------------
     # 3. Optimal Q
     # --------------------------------------------------
@@ -223,7 +221,7 @@ def run_experiment(
     )
 
     # --------------------------------------------------
-    # 5. CONSTRAINT + ATOM GENERATION (SPEC-BASED)  ✅
+    # 5. CONSTRAINT + ATOM GENERATION (SPEC-BASED)
     # --------------------------------------------------
     print("GENERATING CONSTRAINTS")
 
@@ -244,22 +242,27 @@ def run_experiment(
         demo=DemoSpec(
             enabled=("demo" in enabled),
             env_fraction=1.0,
+            max_steps=1,
             state_fraction=demo_env_fraction,
+            alloc_method="uniform",
         ),
 
         pairwise=FeedbackSpec(
             enabled=("pairwise" in enabled),
             total_budget=total_budget if "pairwise" in enabled else 0,
+            alloc_method="uniform",
         ),
 
         estop=FeedbackSpec(
             enabled=("estop" in enabled),
             total_budget=total_budget if "estop" in enabled else 0,
+            alloc_method="uniform",
         ),
 
         improvement=FeedbackSpec(
             enabled=("improvement" in enabled),
             total_budget=total_budget if "improvement" in enabled else 0,
+            alloc_method="uniform",
         ),
     )
 
@@ -274,7 +277,7 @@ def run_experiment(
         f"Atoms per env: mean={np.mean(atom_counts):.1f}, "
         f"total={sum(atom_counts)}"
     )
-
+    #print(candidates_per_env)
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         candidates_per_env,
         SFs,
@@ -302,6 +305,9 @@ def run_experiment(
     # --- Use union as final universal set
     U_universal = U_union_unique
 
+    print("universal constrainsts")
+    for i in U_universal:
+        print(i)
 
     # --------------------------------------------------
     # 6. TWO-STAGE SCOT
@@ -317,7 +323,49 @@ def run_experiment(
 
     chosen_two_stage = out["chosen"]
     print(f"TWO-STAGE selected {len(chosen_two_stage)} atoms")
+    print(chosen_two_stage)
 
+    # U_per_env_chosen, U_chosen = derive_constraints_from_atoms(
+    #     chosen_two_stage,
+    #     SFs,
+    #     envs,
+    # )
+
+#     U_chosen_unique = remove_redundant_constraints(U_chosen)
+
+#     print("\n=== Constraints induced by TWO-STAGE SCOT ===")
+#     print(f"|U_chosen| unique = {len(U_chosen_unique)}")
+#     print(U_chosen_unique)
+
+#     U_union_test = remove_redundant_constraints(
+#     np.vstack([U_chosen_unique, U_universal])
+# )
+
+#     num_covered = len(U_chosen_unique)
+#     num_total = len(U_universal)
+#     num_missing = len(U_union_test) - len(U_chosen_unique)
+
+#     print("\n=== UNIVERSAL CONSTRAINT COVERAGE CHECK ===")
+#     print(f"|U_universal|           = {num_total}")
+#     print(f"|U_chosen| (SCOT uniq)  = {num_covered}")
+#     print(f"|U_missing|            = {num_missing}")
+
+#     if num_missing == 0:
+#         print(" SCOT covers ALL universal constraints")
+#     else:
+#         print(" SCOT does NOT cover all universal constraints")
+
+
+    # Number of unique environments actually used
+    used_envs = sorted({env_idx for env_idx, _ in chosen_two_stage})
+    num_used_envs = len(used_envs)
+
+    print(f"TWO-STAGE used {num_used_envs}/{n_envs} environments")
+
+    for i in used_envs:
+        envs[i].print_mdp_info()
+        envs[i].print_optimal_policy()
+        
     # --------------------------------------------------
     # 7. Regret — TWO-STAGE
     # --------------------------------------------------
@@ -337,6 +385,7 @@ def run_experiment(
         envs,
         candidates_per_env,
         n_to_pick=len(chosen_two_stage),
+        seed=args.seed,
         trials=random_trials,
         birl_kwargs=birl_kwargs,
     )
@@ -347,15 +396,64 @@ def run_experiment(
     # 9. Save
     # --------------------------------------------------
     results = {
+        # --------------------
+        # Core results
+        # --------------------
         "two_stage_regret": reg_ts.tolist(),
         "random_regret": reg_rand.tolist(),
         "two_stage_mean": float(reg_ts.mean()),
         "random_mean": float(reg_rand.mean()),
-        "num_atoms": len(chosen_two_stage),
-        "random_trials": random_trials,
+
+        # --------------------
+        # SCOT statistics
+        # --------------------
+        "num_atoms_selected": len(chosen_two_stage),
+        "num_envs_used": num_used_envs,
+        "used_envs": used_envs,
+
+        # --------------------
+        # Constraint statistics
+        # --------------------
+        "U_q_raw": len(U_q),
+        "U_q_unique": len(U_q_unique),
+        "U_atoms_raw": 0 if U_atoms is None else len(U_atoms),
+        "U_union_unique": len(U_universal),
+        "atom_implied_unique": len(U_universal) - len(U_q_unique),
+
+        # --------------------
+        # Experiment config (reproducibility)
+        # --------------------
+        "config": {
+            "seed": seed,
+            "n_envs": n_envs,
+            "mdp_size": mdp_size,
+            "feature_dim": feature_dim,
+            "feedback": list(feedback),
+            "demo_env_fraction": demo_env_fraction,
+            "total_budget": total_budget,
+            "random_trials": random_trials,
+            "birl": {
+                "beta": birl_kwargs["beta"],
+                "samples": birl_kwargs["samples"],
+                "stepsize": birl_kwargs["stepsize"],
+            },
+        },
     }
 
-    out_path = os.path.join(result_dir, "results.json")
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    exp_name = (
+        f"two_stage_vs_random_"
+        f"env{n_envs}_"
+        f"size{mdp_size}_"
+        f"fd{feature_dim}_"
+        f"budget{total_budget}_"
+        f"seed{seed}_"
+        f"{timestamp}.json"
+    )
+
+    out_path = os.path.join(result_dir, exp_name)
+
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
 
