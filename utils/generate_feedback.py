@@ -330,7 +330,6 @@ def corrections_to_atoms(env_idx, imps):
 # 6. Unified feedback → atoms
 # ============================================================
 
-
 def _generate_candidates_for_one_env(args):
     """
     Worker-safe, picklable function.
