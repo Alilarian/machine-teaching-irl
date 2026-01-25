@@ -23,8 +23,9 @@ from .feedback_budgeting import (
     corrections_to_atoms,
     #sample_random_atoms_like_scot,
     GenerationSpec, DemoSpec, FeedbackSpec
-
 )
+
+from .minigrid_utils import *
 
 from .generate_feedback import sample_random_atoms_like_scot
 

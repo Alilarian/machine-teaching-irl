@@ -1,3 +1,6 @@
+## TODO: 1. make half of the env radnom placement of lava - one third of cells
+
+
 # lavaworld_generator.py
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -7,6 +10,54 @@ from minigrid.core.grid import Grid
 from minigrid.core.world_object import Wall, Lava, Goal
 from minigrid.core.mission import MissionSpace
 
+
+# ======================================================
+# Feature extraction (LINEAR reward)
+# ======================================================
+
+FEATURE_SET = "L1.3"   # or pass as argument later
+
+W_MAP = {
+    "L1.2": np.array([-0.05, -2.0, -0.01]),            # [dist, on_lava, step]
+    "L1.3": np.array([-0.8, -0.1, -5.0, -0.05]),       # [dist, lava_ahead, on_lava, step]
+}
+
+def manhattan(p, q):
+    return abs(p[0] - q[0]) + abs(p[1] - q[1])
+
+def lava_ahead_state(lava_mask, y, x, direction):
+    dx, dy = DIR_TO_VEC[direction]
+    ny, nx = y + dy, x + dx
+    if 0 <= ny < lava_mask.shape[0] and 0 <= nx < lava_mask.shape[1]:
+        return int(lava_mask[ny, nx])
+    return 0
+
+def on_lava_state(lava_mask, y, x):
+    return int(lava_mask[y, x])
+
+def phi_from_state(state, goal_yx, lava_mask, size):
+    y, x, direction = state
+    gy, gx = goal_yx
+
+    dist = manhattan((y, x), (gy, gx))
+    step = 1.0
+
+    if FEATURE_SET == "L1.2":
+        return np.array([
+            dist,
+            on_lava_state(lava_mask, y, x),
+            step,
+        ], dtype=float)
+
+    if FEATURE_SET == "L1.3":
+        return np.array([
+            dist,
+            lava_ahead_state(lava_mask, y, x, direction),
+            on_lava_state(lava_mask, y, x),
+            step,
+        ], dtype=float)
+
+    raise ValueError(f"Unknown FEATURE_SET {FEATURE_SET}")
 
 # ======================================================
 # Utilities
@@ -121,6 +172,7 @@ def is_terminal_state(state, goal_yx, lava_mask):
 
 def step_model(state, action, wall_mask, goal_yx, lava_mask):
     y, x, direction = state
+    size = wall_mask.shape[0]
 
     if is_terminal_state(state, goal_yx, lava_mask):
         return state, True
@@ -137,7 +189,11 @@ def step_model(state, action, wall_mask, goal_yx, lava_mask):
         dx, dy = DIR_TO_VEC[direction]
         ny, nx = y + dy, x + dx
 
-        if wall_mask[ny, nx]:
+        if (
+            ny < 0 or ny >= size or
+            nx < 0 or nx >= size or
+            wall_mask[ny, nx]
+        ):
             ns = (y, x, direction)
         else:
             ns = (ny, nx, direction)
@@ -155,16 +211,29 @@ def enumerate_states(size, wall_mask):
             for d in range(4)]
 
 
-def build_tabular_mdp(states, wall_mask, goal_yx, lava_mask, gamma=0.99):
+def build_tabular_mdp(
+    states,
+    wall_mask,
+    goal_yx,
+    lava_mask,
+    lava_cells,
+    size,
+    gamma=0.99,
+):
     S = len(states)
     A = len(ACTIONS)
+    D = len(W_MAP[FEATURE_SET])
+
     idx_of = {s: i for i, s in enumerate(states)}
 
-    T = np.zeros((S, A, S))
+    T = np.zeros((S, A, S), dtype=float)
     terminal = np.zeros(S, dtype=bool)
+    Phi = np.zeros((S, D), dtype=float)
 
     for i, s in enumerate(states):
         terminal[i] = is_terminal_state(s, goal_yx, lava_mask)
+        Phi[i] = phi_from_state(s, goal_yx, lava_mask, size)
+
         for a_idx, a in enumerate(ACTIONS):
             sp, _ = step_model(s, a, wall_mask, goal_yx, lava_mask)
             T[i, a_idx, idx_of[sp]] = 1.0
@@ -173,11 +242,14 @@ def build_tabular_mdp(states, wall_mask, goal_yx, lava_mask, gamma=0.99):
         "states": states,
         "idx_of": idx_of,
         "T": T,
+        "Phi": Phi,              # ← linear features
         "terminal": terminal,
         "gamma": gamma,
         "goal_yx": goal_yx,
         "lava_mask": lava_mask,
+        "lava_cells": lava_cells,
         "wall_mask": wall_mask,
+        "size": size,
     }
 
 
@@ -188,7 +260,9 @@ def build_tabular_mdp(states, wall_mask, goal_yx, lava_mask, gamma=0.99):
 def generate_lava_layout(size, rng):
     lava_mask = np.zeros((size, size), dtype=bool)
 
+
     vertical = rng.random() < 0.5
+
 
     if vertical:
         col = rng.integers(1, size - 1)
@@ -197,20 +271,22 @@ def generate_lava_layout(size, rng):
         row = rng.integers(1, size - 1)
         wall = [(row, x) for x in range(1, size - 1)]
 
+
     n_holes = rng.integers(1, 3)
     holes = set(rng.choice(len(wall), size=n_holes, replace=False))
+
 
     for i, (y, x) in enumerate(wall):
         if i not in holes:
             lava_mask[y, x] = True
 
+
     goal_rows = [y for y in range(1, size - 1) if not lava_mask[y, size - 2]]
     goal_y = int(rng.choice(goal_rows))
     goal_yx = (goal_y, size - 2)
 
+
     return lava_mask, goal_yx
-
-
 # ======================================================
 # MAIN ENTRY POINT
 # ======================================================
@@ -247,7 +323,15 @@ def generate_lavaworld(
 
         size_, wall_mask, lava_mask, lava_cells, goal_yx = build_static_maps(env)
         states = enumerate_states(size_, wall_mask)
-        mdp = build_tabular_mdp(states, wall_mask, goal_yx, lava_mask, gamma)
+        mdp = build_tabular_mdp(
+                            states,
+                            wall_mask,
+                            goal_yx,
+                            lava_mask,
+                            lava_cells,
+                            size_,
+                            gamma,
+                        )
 
         envs.append(env)
         mdps.append(mdp)
