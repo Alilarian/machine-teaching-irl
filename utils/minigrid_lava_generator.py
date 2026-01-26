@@ -339,3 +339,36 @@ def generate_lavaworld(
         meta["goals"].append(goal_yx)
 
     return envs, mdps, meta
+
+def rollout_random_trajectory(
+    start_state,
+    wall_mask,
+    goal_yx,
+    lava_mask,
+    max_horizon=30,
+    rng=None,
+):
+    """
+    Roll out a random trajectory from a fixed start state.
+    Returns list of (s, a, s_next).
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    traj = []
+    s = start_state
+
+    for _ in range(max_horizon):
+        if is_terminal_state(s, goal_yx, lava_mask):
+            break
+
+        a = rng.choice(ACTIONS)
+        sp, done = step_model(s, a, wall_mask, goal_yx, lava_mask)
+
+        traj.append((s, a, sp))
+        s = sp
+
+        if done:
+            break
+
+    return traj

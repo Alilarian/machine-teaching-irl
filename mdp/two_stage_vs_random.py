@@ -32,7 +32,6 @@ from utils import (
     DemoSpec,
     FeedbackSpec,
 )
-
 from utils.successor_features import max_q_sa_pairs
 from utils.common_helper import calculate_expected_value_difference
 from utils.feedback_budgeting import generate_candidate_atoms_for_scot
@@ -40,7 +39,6 @@ from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
 
 from teaching.two_stage_scot import two_stage_scot
-
 
 # =============================================================================
 # Ground-truth reward generator
@@ -50,14 +48,12 @@ def generate_w_true(d, seed=None):
     w = rng.normal(size=d)
     return w / np.linalg.norm(w)
 
-
 # =============================================================================
 # BIRL → Q helper
 # =============================================================================
 def _compute_Q_wrapper(args):
     env, w, vi_eps = args
     return compute_Q_from_weights_with_VI(env, w, vi_epsilon=vi_eps)
-
 
 def birl_atomic_to_Q_lists(
     envs,
@@ -90,7 +86,6 @@ def birl_atomic_to_Q_lists(
         Q_mean = list(ex.map(_compute_Q_wrapper, [(e, w_mean, vi_epsilon) for e in envs]))
 
     return Q_map, Q_mean
-
 
 # =============================================================================
 # Regret
@@ -209,7 +204,7 @@ def run_experiment(
     # 3. Optimal Q
     # --------------------------------------------------
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)
-
+    
     # --------------------------------------------------
     # 4. Successor features
     # --------------------------------------------------

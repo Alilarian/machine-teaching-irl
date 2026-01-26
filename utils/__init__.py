@@ -25,11 +25,13 @@ from .feedback_budgeting import (
     GenerationSpec, DemoSpec, FeedbackSpec
 )
 
+from .minigrid_lava_generator import *
+
 from .minigrid_utils import *
 
 from .generate_feedback import sample_random_atoms_like_scot
 
-from .minigrid_lava_generator import generate_lavaworld
+
 #from .feedback_budgeting import GenerationSpec, DemoSpec, FeedbackSpec
 
 # Successor features

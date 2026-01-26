@@ -27,10 +27,9 @@ from minigrid.core.mission import MissionSpace
 from utils import (generate_lavaworld,
                    policy_evaluation_next_state_multi, 
                    value_iteration_next_state_multi,
-                   compute_successor_features_multi)
-
-
-
+                   compute_successor_features_multi,
+                   generate_demos_from_policies_multi,
+                   constraints_from_demos_next_state_multi)
 
 
 # =============================================================================
