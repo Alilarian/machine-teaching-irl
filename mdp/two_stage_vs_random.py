@@ -204,7 +204,7 @@ def run_experiment(
     # 3. Optimal Q
     # --------------------------------------------------
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)
-    
+
     # --------------------------------------------------
     # 4. Successor features
     # --------------------------------------------------
@@ -245,19 +245,25 @@ def run_experiment(
         pairwise=FeedbackSpec(
             enabled=("pairwise" in enabled),
             total_budget=total_budget if "pairwise" in enabled else 0,
-            alloc_method="uniform",
+            #alloc_method="uniform",
+            alloc_method="dirichlet",
+            alloc_params={"alpha": 0.3},    
         ),
 
         estop=FeedbackSpec(
             enabled=("estop" in enabled),
             total_budget=total_budget if "estop" in enabled else 0,
             alloc_method="uniform",
+            # alloc_method="dirichlet",
+            # alloc_params={"alpha": 0.3},
         ),
 
         improvement=FeedbackSpec(
             enabled=("improvement" in enabled),
             total_budget=total_budget if "improvement" in enabled else 0,
             alloc_method="uniform",
+            # alloc_method="dirichlet",
+            # alloc_params={"alpha": 0.3},
         ),
     )
 
