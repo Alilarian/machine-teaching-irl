@@ -304,7 +304,7 @@ def run_experiment(
         f"Atoms per env: mean={np.mean(atom_counts):.1f}, "
         f"total={sum(atom_counts)}"
     )
-    #print(candidates_per_env)
+    print(candidates_per_env)
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         candidates_per_env,
         SFs,
@@ -353,6 +353,8 @@ def run_experiment(
     print(f"TWO-STAGE selected {len(chosen_two_stage)} atoms")
    # print(chosen_two_stage)
    # --- TWO-STAGE constraint recovery
+   #print()
+    print(chosen_two_stage)
     ts_n_constraints, ts_coverage = recover_constraints_and_coverage(
         chosen_two_stage,
         SFs,
@@ -400,9 +402,9 @@ def run_experiment(
 
     print(f"TWO-STAGE used {num_used_envs}/{n_envs} environments")
 
-    for i in used_envs:
-        envs[i].print_mdp_info()
-        envs[i].print_optimal_policy()
+    # for i in used_envs:
+    #     envs[i].print_mdp_info()
+    #     envs[i].print_optimal_policy()
         
     # --------------------------------------------------
     # 7. Regret — TWO-STAGE

@@ -641,9 +641,17 @@ def recover_constraints_and_coverage(
     """
     if len(chosen_atoms) == 0:
         return 0, 0.0
+    
+    num_envs = len(envs)
+    atoms_per_env = [[] for _ in range(num_envs)]
+
+    for env_idx, atom in chosen_atoms:
+        if env_idx < 0 or env_idx >= num_envs:
+            raise ValueError(f"Invalid env_idx={env_idx} in atoms_flat.")
+        atoms_per_env[env_idx].append(atom)
 
     _, U_chosen = derive_constraints_from_atoms(
-        chosen_atoms,
+        atoms_per_env,
         SFs,
         envs,
     )

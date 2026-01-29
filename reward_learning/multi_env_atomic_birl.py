@@ -130,9 +130,6 @@ class MultiEnvAtomicBIRL:
                 vi.run_value_iteration(epsilon=self.epsilon)
                 Q = vi.get_q_values()
             # ============================================================
-            
-
-
             # Evaluate each atom
             for atom in atoms:
                 ft = atom.feedback_type
