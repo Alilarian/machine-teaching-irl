@@ -53,6 +53,8 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
                 color = self.grid_colors[r, c]
                 self.grid_features[r, c] = self.colors_to_features[color]
 
+        
+        
         # Gym spaces
         self.action_space = spaces.Discrete(4)
 
@@ -62,6 +64,12 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
         self.terminal_states = list(terminal_states) if terminal_states else []
         self.include_terminal = bool(self.terminal_states)  # used by SF to decide zeroing terminal features
         self.start_location = (0, 0)
+
+
+        # ----------------- flat state feature table (CRITICAL FOR SPEED) -----------------
+        self.state_features = self.grid_features.reshape(
+            self.get_num_states(), self.num_features
+        ).astype(np.float32)
 
         # Feature weights (normalized)
         if custom_feature_weights is None:

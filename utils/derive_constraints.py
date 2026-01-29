@@ -363,32 +363,80 @@ def constraints_from_demo(traj, mu_sa, env=None, normalize=True, tol=1e-12):
 # 4. Pairwise, E-stop, Improvement Constraints
 # ============================================================
 
+# def constraints_from_pairwise(atom_data, env):
+#     preferred, other = atom_data
+#     preferred_feats = np.sum([env.get_state_features(s) for s, _ in preferred], axis=0)
+#     other_feats = np.sum([env.get_state_features(s) for s, _ in other], axis=0)
+#     diff = preferred_feats - other_feats
+#     norm = np.linalg.norm(diff)
+#     return [diff / norm if norm != 0 else np.zeros_like(diff)]
+
 def constraints_from_pairwise(atom_data, env):
     preferred, other = atom_data
-    preferred_feats = np.sum([env.get_state_features(s) for s, _ in preferred], axis=0)
-    other_feats = np.sum([env.get_state_features(s) for s, _ in other], axis=0)
+
+    # extract state indices only
+    pref_states = [s for s, _ in preferred]
+    other_states = [s for s, _ in other]
+
+    preferred_feats = env.state_features[pref_states].sum(axis=0)
+    other_feats = env.state_features[other_states].sum(axis=0)
+
     diff = preferred_feats - other_feats
     norm = np.linalg.norm(diff)
-    return [diff / norm if norm != 0 else np.zeros_like(diff)]
+
+    if norm == 0.0:
+        return [np.zeros_like(diff)]
+
+    return [diff / norm]
 
 
+# def constraints_from_estop(atom_data, env):
+#     traj, t_stop = atom_data
+#     feats_up_to_t = np.sum([env.get_state_features(s) for s, _ in traj[:t_stop+1]], axis=0)
+#     full_feats = np.sum([env.get_state_features(s) for s, _ in traj], axis=0)
+#     diff = feats_up_to_t - full_feats
+#     norm = np.linalg.norm(diff)
+#     return [diff / norm if norm != 0 else np.zeros_like(diff)]
 def constraints_from_estop(atom_data, env):
     traj, t_stop = atom_data
-    feats_up_to_t = np.sum([env.get_state_features(s) for s, _ in traj[:t_stop+1]], axis=0)
-    full_feats = np.sum([env.get_state_features(s) for s, _ in traj], axis=0)
+
+    states_full = [s for s, _ in traj]
+    states_partial = states_full[: t_stop + 1]
+
+    feats_up_to_t = env.state_features[states_partial].sum(axis=0)
+    full_feats = env.state_features[states_full].sum(axis=0)
+
     diff = feats_up_to_t - full_feats
     norm = np.linalg.norm(diff)
-    return [diff / norm if norm != 0 else np.zeros_like(diff)]
 
+    if norm == 0.0:
+        return [np.zeros_like(diff)]
 
+    return [diff / norm]
+
+# def constraints_from_improvement(atom_data, env):
+#     improved, original = atom_data
+#     imp = np.sum([env.get_state_features(s) for s, _ in improved], axis=0)
+#     org = np.sum([env.get_state_features(s) for s, _ in original], axis=0)
+#     diff = imp - org
+#     norm = np.linalg.norm(diff)
+#     return [diff / norm if norm != 0 else np.zeros_like(diff)]
 def constraints_from_improvement(atom_data, env):
     improved, original = atom_data
-    imp = np.sum([env.get_state_features(s) for s, _ in improved], axis=0)
-    org = np.sum([env.get_state_features(s) for s, _ in original], axis=0)
-    diff = imp - org
-    norm = np.linalg.norm(diff)
-    return [diff / norm if norm != 0 else np.zeros_like(diff)]
 
+    imp_states = [s for s, _ in improved]
+    org_states = [s for s, _ in original]
+
+    imp_feats = env.state_features[imp_states].sum(axis=0)
+    org_feats = env.state_features[org_states].sum(axis=0)
+
+    diff = imp_feats - org_feats
+    norm = np.linalg.norm(diff)
+
+    if norm == 0.0:
+        return [np.zeros_like(diff)]
+
+    return [diff / norm]
 
 # ============================================================
 # 5. Atom → Constraint Dispatcher
@@ -422,6 +470,9 @@ def atom_to_constraints(atom, mu_sa, env):
 # 6. Atom-based Constraint Builder (GLOBAL + PER-ENV)
 # ============================================================
 
+
+
+### try to make this threaded
 def _derive_constraints_one_env(args):
     atoms, sf, env, precision = args
     mu_sa = sf[0]
@@ -446,7 +497,9 @@ def derive_constraints_from_atoms(
 
     tasks = list(zip(atoms_per_env, SFs, envs, [precision] * len(envs)))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    # with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    #     results = list(executor.map(_derive_constraints_one_env, tasks))
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(_derive_constraints_one_env, tasks))
 
     # ----------------------------
@@ -504,6 +557,8 @@ def _derive_constraints_from_q_one_env(args):
     # H_i = list of constraint vectors
     return [c[0] for c in cons]
 
+
+## change this to process and cpu instead of thread
 def derive_constraints_from_q_family(
     SFs,
     Q_list,
@@ -573,7 +628,40 @@ def derive_constraints_from_q_family(
 
     return U_per_mdp, U_global
 
+def recover_constraints_and_coverage(
+    chosen_atoms,
+    SFs,
+    envs,
+    U_universal,
+):
+    """
+    Returns:
+      - n_unique_constraints
+      - coverage_fraction
+    """
+    if len(chosen_atoms) == 0:
+        return 0, 0.0
 
+    _, U_chosen = derive_constraints_from_atoms(
+        chosen_atoms,
+        SFs,
+        envs,
+    )
+
+    if U_chosen is None or len(U_chosen) == 0:
+        return 0, 0.0
+
+    U_chosen_unique = remove_redundant_constraints(U_chosen)
+
+    # union test for coverage
+    union = remove_redundant_constraints(
+        np.vstack([U_universal, U_chosen_unique])
+    )
+
+    n_unique = len(U_chosen_unique)
+    coverage = n_unique / len(U_universal)
+
+    return n_unique, coverage
 
 
 

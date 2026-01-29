@@ -28,6 +28,7 @@ from utils import (
     compute_Q_from_weights_with_VI,
     remove_redundant_constraints,
     parallel_value_iteration,
+    recover_constraints_and_coverage,
     GenerationSpec,
     DemoSpec,
     FeedbackSpec,
@@ -130,8 +131,13 @@ def run_random_trials(
     *,
     trials,
     birl_kwargs,
+    SFs,
+    U_universal,
 ):
     all_regrets = []
+    mdp_counts = []
+    constraint_counts = []
+    coverages = []
 
     for sd in range(trials):
         chosen_rand = sample_random_atoms_global_pool(
@@ -140,6 +146,21 @@ def run_random_trials(
             seed=sd + seed,
         )
 
+        # --- MDP count
+        used_envs = {env_idx for env_idx, _ in chosen_rand}
+        mdp_counts.append(len(used_envs))
+
+        # --- Constraints + coverage
+        n_c, cov = recover_constraints_and_coverage(
+            chosen_rand,
+            SFs,
+            envs,
+            U_universal,
+        )
+        constraint_counts.append(n_c)
+        coverages.append(cov)
+
+        # --- Regret
         Q_map, _ = birl_atomic_to_Q_lists(
             envs,
             chosen_rand,
@@ -149,7 +170,12 @@ def run_random_trials(
         reg = regrets_from_Q(envs, Q_map)
         all_regrets.append(reg)
 
-    return np.vstack(all_regrets)
+    return {
+        "regrets": np.vstack(all_regrets),
+        "mdp_counts": mdp_counts,
+        "constraint_counts": constraint_counts,
+        "coverages": coverages,
+    }
 
 # =============================================================================
 # MAIN EXPERIMENT
@@ -316,7 +342,8 @@ def run_experiment(
     out = two_stage_scot(
         U_universal=U_universal,
         U_per_env_atoms=U_per_env_atoms,
-        U_per_env_q=U_per_env_q,
+        #U_per_env_q=U_per_env_q,
+        U_per_env_q=None,
         candidates_per_env=candidates_per_env,
         SFs=SFs,
         envs=envs,
@@ -324,7 +351,17 @@ def run_experiment(
 
     chosen_two_stage = out["chosen"]
     print(f"TWO-STAGE selected {len(chosen_two_stage)} atoms")
-    print(chosen_two_stage)
+   # print(chosen_two_stage)
+   # --- TWO-STAGE constraint recovery
+    ts_n_constraints, ts_coverage = recover_constraints_and_coverage(
+        chosen_two_stage,
+        SFs,
+        envs,
+        U_universal,
+    )
+
+    print(f"TWO-STAGE unique constraints recovered: {ts_n_constraints}")
+    print(f"TWO-STAGE constraint coverage: {100*ts_coverage:.2f}%")
 
     # U_per_env_chosen, U_chosen = derive_constraints_from_atoms(
     #     chosen_two_stage,
@@ -382,16 +419,24 @@ def run_experiment(
     # --------------------------------------------------
     # 8. Regret — RANDOM
     # --------------------------------------------------
-    reg_rand = run_random_trials(
+    rand_out = run_random_trials(
         envs,
         candidates_per_env,
         n_to_pick=len(chosen_two_stage),
         seed=args.seed,
         trials=random_trials,
         birl_kwargs=birl_kwargs,
+        SFs=SFs,
+        U_universal=U_universal,
     )
 
+    reg_rand = rand_out["regrets"]
+
     print(f"RANDOM mean regret: {reg_rand.mean():.4f}")
+    print(f"RANDOM mean regret: {reg_rand.mean():.4f}")
+    print(f"RANDOM mean #MDPs selected: {np.mean(rand_out['mdp_counts']):.2f}")
+    print(f"RANDOM mean unique constraints: {np.mean(rand_out['constraint_counts']):.2f}")
+    print(f"RANDOM mean constraint coverage: {100*np.mean(rand_out['coverages']):.2f}%")
 
     # --------------------------------------------------
     # 9. Save
@@ -438,6 +483,22 @@ def run_experiment(
                 "samples": birl_kwargs["samples"],
                 "stepsize": birl_kwargs["stepsize"],
             },
+        },
+        # --------------------
+        # Constraint recovery
+        # --------------------
+        "two_stage_constraints": {
+            "unique_constraints": ts_n_constraints,
+            "coverage": ts_coverage,
+        },
+
+        "random_constraints": {
+            "mdp_counts": rand_out["mdp_counts"],
+            "constraint_counts": rand_out["constraint_counts"],
+            "coverages": rand_out["coverages"],
+            "mean_mdp_count": float(np.mean(rand_out["mdp_counts"])),
+            "mean_unique_constraints": float(np.mean(rand_out["constraint_counts"])),
+            "mean_coverage": float(np.mean(rand_out["coverages"])),
         },
     }
 
