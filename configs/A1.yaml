@@ -1,0 +1,20 @@
+n_envs: 100
+mdp_size: 8
+feature_dim: 6
+
+
+feedback:
+- demo
+
+
+demo_env_fraction: 1
+total_budget: 0
+
+
+random_trials: 30
+
+
+# BIRL parameters
+samples: 4000
+stepsize: 0.5
+beta: 10.0
