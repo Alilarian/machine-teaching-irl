@@ -26,7 +26,7 @@ export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # -------------------------------
 # Paths
 # -------------------------------
-REPO_DIR=$HOME/machine-teaching-irl
+REPO_DIR=$HOME/machine-teaching-irl/mdp
 OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A7
 
 mkdir -p "$OUT_BASE"
