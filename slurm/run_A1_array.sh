@@ -27,7 +27,7 @@ export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # Paths
 # -------------------------------
 REPO_DIR=$HOME/machine-teaching-irl/mdp
-OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A7
+OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A1
 
 mkdir -p "$OUT_BASE"
 mkdir -p logs
@@ -51,12 +51,12 @@ echo "Seed: ${SEED}"
 echo "Output dir: ${OUT_BASE}/run_${SLURM_ARRAY_TASK_ID}"
 
 python two_stage_vs_random.py \
-  --n_envs 10 \
-  --mdp_size 4 \
-  --feature_dim 2 \
-  --feedback estop \
+  --n_envs 100 \
+  --mdp_size 8 \
+  --feature_dim 6 \
+  --feedback demo \
   --demo_env_fraction 1.0 \
-  --total_budget 50 \
+  --total_budget 0 \
   --random_trials 10 \
   --samples 100 \
   --stepsize 0.1 \
