@@ -27,34 +27,39 @@ export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # Paths
 # -------------------------------
 REPO_DIR=$HOME/machine-teaching-irl
-CONFIG=$REPO_DIR/configs/A1.yaml
 OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A7
 
-mkdir -p $OUT_BASE
+mkdir -p "$OUT_BASE"
 mkdir -p logs
 
 # -------------------------------
-# Fixed seed or array seed
+# Seed handling
 # -------------------------------
+# Fixed seed (reproducible across array)
 SEED=1377
-# If you want array-based seeds later, replace with:
-# SEED=$SLURM_ARRAY_TASK_ID
+
+# If you want per-array randomness later, use:
+# SEED=$((1377 + SLURM_ARRAY_TASK_ID))
 
 # -------------------------------
 # Run
 # -------------------------------
-cd $REPO_DIR
+cd "$REPO_DIR" || exit 1
+
+echo "Starting task ${SLURM_ARRAY_TASK_ID} on $(hostname)"
+echo "Seed: ${SEED}"
+echo "Output dir: ${OUT_BASE}/run_${SLURM_ARRAY_TASK_ID}"
 
 python two_stage_vs_random.py \
-  --n_envs $(yq '.n_envs' $CONFIG) \
-  --mdp_size $(yq '.mdp_size' $CONFIG) \
-  --feature_dim $(yq '.feature_dim' $CONFIG) \
+  --n_envs 10 \
+  --mdp_size 4 \
+  --feature_dim 2 \
   --feedback estop \
-  --demo_env_fraction $(yq '.demo_env_fraction' $CONFIG) \
-  --total_budget $(yq '.total_budget' $CONFIG) \
-  --random_trials $(yq '.random_trials' $CONFIG) \
-  --samples $(yq '.samples' $CONFIG) \
-  --stepsize $(yq '.stepsize' $CONFIG) \
-  --beta $(yq '.beta' $CONFIG) \
-  --seed $SEED \
-  --result_dir $OUT_BASE/run_${SLURM_ARRAY_TASK_ID}
+  --demo_env_fraction 1.0 \
+  --total_budget 50 \
+  --random_trials 10 \
+  --samples 100 \
+  --stepsize 0.1 \
+  --beta 10.0 \
+  --seed "$SEED" \
+  --result_dir "${OUT_BASE}/run_${SLURM_ARRAY_TASK_ID}"
