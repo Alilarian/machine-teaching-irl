@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -M kingspeak
-#SBATCH --account=dbrown
-#SBATCH --partition=kingspeak
+#SBATCH --account=soc-kp
+#SBATCH --partition=soc-kp
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH -c 16
