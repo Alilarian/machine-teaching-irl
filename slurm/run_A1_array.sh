@@ -54,12 +54,12 @@ python two_stage_vs_random.py \
   --n_envs 100 \
   --mdp_size 8 \
   --feature_dim 6 \
-  --feedback demo \
-  --demo_env_fraction 1.0 \
-  --total_budget 0 \
-  --random_trials 10 \
-  --samples 100 \
-  --stepsize 0.1 \
+  --feedback pairwise \
+  --demo_env_fraction 0 \
+  --total_budget 100000 \
+  --random_trials 50 \
+  --samples 2000 \
+  --stepsize 0.5 \
   --beta 10.0 \
   --seed "$SEED" \
   --result_dir "${OUT_BASE}/run_${SLURM_ARRAY_TASK_ID}"
