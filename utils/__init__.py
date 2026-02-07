@@ -41,6 +41,9 @@ from .successor_features import (
 
 )
 
+from .feedback_budgeting_minigrid import *
+
+
 # Constraint extraction
 from .derive_constraints import (
     derive_constraints_from_q_ties,

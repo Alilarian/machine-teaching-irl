@@ -471,7 +471,6 @@ def atom_to_constraints(atom, mu_sa, env):
 # ============================================================
 
 
-
 ### try to make this threaded
 def _derive_constraints_one_env(args):
     atoms, sf, env, precision = args
@@ -670,9 +669,6 @@ def recover_constraints_and_coverage(
     coverage = n_unique / len(U_universal)
 
     return n_unique, coverage
-
-
-
 
 # def derive_constraints_from_q_family(
 #     SFs,

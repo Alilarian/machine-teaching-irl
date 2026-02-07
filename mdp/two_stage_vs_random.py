@@ -271,9 +271,9 @@ def run_experiment(
         pairwise=FeedbackSpec(
             enabled=("pairwise" in enabled),
             total_budget=total_budget if "pairwise" in enabled else 0,
-            #alloc_method="uniform",
-            alloc_method="dirichlet",
-            alloc_params={"alpha": 0.3},    
+            alloc_method="uniform",
+            # alloc_method="dirichlet",
+            # alloc_params={"alpha": 0.3},    
         ),
 
         estop=FeedbackSpec(
@@ -335,7 +335,7 @@ def run_experiment(
     print("universal constrainsts")
     for i in U_universal:
         print(i)
-
+    
     # --------------------------------------------------
     # 6. TWO-STAGE SCOT
     # --------------------------------------------------
@@ -364,37 +364,6 @@ def run_experiment(
 
     print(f"TWO-STAGE unique constraints recovered: {ts_n_constraints}")
     print(f"TWO-STAGE constraint coverage: {100*ts_coverage:.2f}%")
-
-    # U_per_env_chosen, U_chosen = derive_constraints_from_atoms(
-    #     chosen_two_stage,
-    #     SFs,
-    #     envs,
-    # )
-
-#     U_chosen_unique = remove_redundant_constraints(U_chosen)
-
-#     print("\n=== Constraints induced by TWO-STAGE SCOT ===")
-#     print(f"|U_chosen| unique = {len(U_chosen_unique)}")
-#     print(U_chosen_unique)
-
-#     U_union_test = remove_redundant_constraints(
-#     np.vstack([U_chosen_unique, U_universal])
-# )
-
-#     num_covered = len(U_chosen_unique)
-#     num_total = len(U_universal)
-#     num_missing = len(U_union_test) - len(U_chosen_unique)
-
-#     print("\n=== UNIVERSAL CONSTRAINT COVERAGE CHECK ===")
-#     print(f"|U_universal|           = {num_total}")
-#     print(f"|U_chosen| (SCOT uniq)  = {num_covered}")
-#     print(f"|U_missing|            = {num_missing}")
-
-#     if num_missing == 0:
-#         print(" SCOT covers ALL universal constraints")
-#     else:
-#         print(" SCOT does NOT cover all universal constraints")
-
 
     # Number of unique environments actually used
     used_envs = sorted({env_idx for env_idx, _ in chosen_two_stage})
@@ -523,7 +492,6 @@ def run_experiment(
 
     print(f"\nSaved results to {out_path}")
     print("\n================= EXPERIMENT END =================\n")
-
 
 # =============================================================================
 # CLI

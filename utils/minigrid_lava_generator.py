@@ -1,6 +1,5 @@
 ## TODO: 1. make half of the env radnom placement of lava - one third of cells
 
-
 # lavaworld_generator.py
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -10,16 +9,14 @@ from minigrid.core.grid import Grid
 from minigrid.core.world_object import Wall, Lava, Goal
 from minigrid.core.mission import MissionSpace
 
-
 # ======================================================
 # Feature extraction (LINEAR reward)
 # ======================================================
-
 FEATURE_SET = "L1.3"   # or pass as argument later
 
 W_MAP = {
-    "L1.2": np.array([-0.05, -2.0, -0.01]),            # [dist, on_lava, step]
-    "L1.3": np.array([-0.8, -0.1, -5.0, -0.05]),       # [dist, lava_ahead, on_lava, step]
+    "L1.2": np.array([-0.05, -2.0, -0.01])/np.linalg.norm([-0.05, -2.0, -0.01]),            # [dist, on_lava, step]
+    "L1.3": np.array([-0.8, -0.1, -5.0, -0.05])/np.linalg.norm([-0.8, -0.1, -5.0, -0.05]),       # [dist, lava_ahead, on_lava, step]
 }
 
 def manhattan(p, q):
@@ -166,6 +163,14 @@ def build_static_maps(env: LavaWorldEnv):
 # ======================================================
 
 def is_terminal_state(state, goal_yx, lava_mask):
+    #print(state)
+    if not isinstance(state, (tuple, list, np.ndarray)):
+        raise TypeError(
+            f"is_terminal_state expected (y,x,dir), got {state} of type {type(state)}"
+        )
+
+    if len(state) != 3:
+        raise ValueError(f"State must be length 3, got {state}")
     y, x, _ = state
     return (y, x) == goal_yx or lava_mask[y, x]
 
@@ -204,11 +209,14 @@ def step_model(state, action, wall_mask, goal_yx, lava_mask):
 
 
 def enumerate_states(size, wall_mask):
-    return [(y, x, d)
-            for y in range(size)
-            for x in range(size)
-            if not wall_mask[y, x]
-            for d in range(4)]
+    states = []
+    for y in range(size):
+        for x in range(size):
+            if wall_mask[y, x]:
+                continue
+            for d in range(4):
+                states.append((y, x, d))
+    return states
 
 
 def build_tabular_mdp(
@@ -241,6 +249,7 @@ def build_tabular_mdp(
     return {
         "states": states,
         "idx_of": idx_of,
+        "true_w":W_MAP["L1.3"], 
         "T": T,
         "Phi": Phi,              # ← linear features
         "terminal": terminal,
@@ -359,6 +368,7 @@ def rollout_random_trajectory(
     s = start_state
 
     for _ in range(max_horizon):
+        #print(type(s))
         if is_terminal_state(s, goal_yx, lava_mask):
             break
 

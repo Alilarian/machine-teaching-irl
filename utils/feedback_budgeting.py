@@ -401,7 +401,6 @@ def simulate_corrections(
         return list(ex.map(lambda args: _simulate_improvement_one(env, args[0], num_random_trajs, args[1]),
                            zip(trajectories, seeds)))
 
-
 # ============================================================
 # 6. Pairwise (reproducible, no quadratic blowup)
 # ============================================================
@@ -458,7 +457,6 @@ def generate_pairwise_comparisons(
 
     return pairs
 
-
 # ============================================================
 # 7. E-Stop (no randomness internally, but sampling is rng-driven)
 # ============================================================
@@ -488,7 +486,6 @@ def simulate_human_estops(
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         return list(ex.map(lambda t: simulate_human_estop_one(env, t, beta=beta), trajectories))
 
-
 # ============================================================
 # 8. Atom constructors
 # ============================================================
@@ -504,7 +501,6 @@ def estops_to_atoms(env_idx, estops):
 
 def corrections_to_atoms(env_idx, imps):
     return [Atom(env_idx, "improvement", imp) for imp in imps]
-
 
 # ============================================================
 # 9. Configs (clean knobs)
@@ -556,7 +552,6 @@ class GenerationSpec:
 
     # estop
     estop_beta: float = 10.0
-
 
 # ============================================================
 # 10. Worker (per-env generation) — picklable
