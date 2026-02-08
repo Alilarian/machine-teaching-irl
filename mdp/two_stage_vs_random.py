@@ -304,7 +304,7 @@ def run_experiment(
         f"Atoms per env: mean={np.mean(atom_counts):.1f}, "
         f"total={sum(atom_counts)}"
     )
-    print(candidates_per_env)
+
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         candidates_per_env,
         SFs,

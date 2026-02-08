@@ -516,22 +516,22 @@ def derive_constraints_from_atoms(
     # ----------------------------
     # Global uniqueness (serial)
     # ----------------------------
-    unique = []
-    for v in all_constraints:
-        v = np.asarray(v)
-        v_norm = np.linalg.norm(v)
-        if v_norm == 0:
-            continue
+    # unique = []
+    # for v in all_constraints:
+    #     v = np.asarray(v)
+    #     v_norm = np.linalg.norm(v)
+    #     if v_norm == 0:
+    #         continue
 
-        is_close = any(
-            np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
-            for u in unique
-        )
-        if not is_close:
-            unique.append(v)
+    #     is_close = any(
+    #         np.dot(v, u) / (np.linalg.norm(v) * np.linalg.norm(u)) > 1 - precision
+    #         for u in unique
+    #     )
+    #     if not is_close:
+    #         unique.append(v)
 
     U_global = np.array(
-        remove_redundant_constraints(unique, epsilon=lp_epsilon)
+        remove_redundant_constraints(all_constraints, epsilon=lp_epsilon)
     )
 
     return U_per_env, U_global

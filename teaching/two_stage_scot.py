@@ -15,7 +15,6 @@ def make_key_for(*, normalize=True, round_decimals=12):
         return tuple(np.round(vv, round_decimals))
     return key_for
 
-
 # ---------------------------------------------------------------------
 # Stage-1 coverage using canonical keys (FIXED)
 # ---------------------------------------------------------------------
@@ -63,7 +62,6 @@ def build_mdp_coverage_from_constraints_keys(
         mdp_cov.append(cov_uids)
 
     return mdp_cov, key_to_uid, uid_to_key
-
 
 def greedy_select_mdps_unweighted(mdp_cov, universe_size):
     """
@@ -115,7 +113,6 @@ def greedy_select_mdps_unweighted(mdp_cov, universe_size):
         "s1_final_coverage": len(covered),
         "s1_universe_size": universe_size,
     }
-
 
 # ------------------------------------------------------------
 # Two-stage SCOT (cost-free) — FIXED Stage-1 coverage
@@ -193,6 +190,8 @@ def two_stage_scot(
     pool_atoms = [candidates_per_env[k] for k in selected_mdps]
     pool_SFs   = [SFs[k] for k in selected_mdps]
     pool_envs  = [envs[k] for k in selected_mdps]
+
+    #### Here we are pssing U_universal
 
     chosen_local, pool_stats, _ = scot_greedy_family_atoms_tracked(
         U_universal,
