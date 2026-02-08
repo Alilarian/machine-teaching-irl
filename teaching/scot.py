@@ -20,12 +20,29 @@ def scot_greedy_family_atoms_tracked(
         vv = v / n if normalize else v
         return tuple(np.round(vv, round_decimals))
     
-    key_to_uix = {}
-    for idx, v in enumerate(U_global):
-        key_to_uix.setdefault(key_for(v), []).append(idx)
+    ##################################### replace this block with:
     
-    universe = set(range(len(U_global)))
+    # key_to_uix = {}
+    # for idx, v in enumerate(U_global):
+    #     key_to_uix.setdefault(key_for(v), []).append(idx)
+    
+    # universe = set(range(len(U_global)))
+    # covered = set()
+    # --- Build canonical UID universe (MATCHES Stage-1) ---
+    key_to_uid = {}
+    uid_to_key = []
+
+    for v in U_global:
+        k = key_for(v)
+        if k not in key_to_uid:
+            key_to_uid[k] = len(uid_to_key)
+            uid_to_key.append(k)
+
+    universe = set(range(len(uid_to_key)))
     covered = set()
+
+    ####################################
+
     chosen = []
     chosen_constraints_list = []
     inspected_env_indices = set()
@@ -53,11 +70,22 @@ def scot_greedy_family_atoms_tracked(
         cov_i = []
         for atom in atom_list:
             constraints = atom_to_constraints(atom, mu_sa, env)
-            atom_cov = set()
+            
+            ############################# replace this block
+            # atom_cov = set()
+            # for v in constraints:
+            #     k = key_for(v)
+            #     if k in key_to_uix:
+            #         atom_cov.update(key_to_uix[k])
+            #             atom_cov = set()
+            
             for v in constraints:
                 k = key_for(v)
-                if k in key_to_uix:
-                    atom_cov.update(key_to_uix[k])
+                uid = key_to_uid.get(k, None)
+                if uid is not None:
+                    atom_cov.add(uid)
+            ############################# replace this block
+            
             cov_i.append(atom_cov)
         cov.append(cov_i)
         env_stats[env_idx]["precompute_time"] = time.time() - env_precompute_start

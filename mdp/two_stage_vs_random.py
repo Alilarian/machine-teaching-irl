@@ -301,7 +301,7 @@ def run_experiment(
 
     atom_counts = [len(a) for a in candidates_per_env]
     print(
-        f"Atoms per env: mean={np.mean(atom_counts):.1f}, "
+        f"Atoms per env: mean={np.mean(atom_counts):.1f},"
         f"total={sum(atom_counts)}"
     )
 
@@ -315,12 +315,12 @@ def run_experiment(
     U_q_unique = remove_redundant_constraints(U_q)
 
     # --- Deduplicate Q + Atom constraints
-    if U_atoms is not None and len(U_atoms) > 0:
-        U_union_unique = remove_redundant_constraints(
-            np.vstack([U_q, U_atoms])
-        )
-    else:
-        U_union_unique = U_q_unique
+    #if U_atoms is not None and len(U_atoms) > 0:
+    U_union_unique = remove_redundant_constraints(
+        np.vstack([U_q, U_atoms])
+    )
+    # else:
+    #     U_union_unique = U_q_unique
 
     # --- Log diagnostic info
     print(f"|U_q| raw            = {len(U_q)}")
