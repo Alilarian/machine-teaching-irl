@@ -659,8 +659,6 @@ class GenerationSpec:
     estop: Optional[FeedbackSpec] = None
     improvement: Optional[FeedbackSpec] = None
 
-import numpy as np
-
 def allocate_budget(num_envs, total_budget, method, params, rng):
     if total_budget <= 0:
         return np.zeros(num_envs, dtype=int)

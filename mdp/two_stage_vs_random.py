@@ -121,6 +121,7 @@ def sample_random_atoms_global_pool(
     ]
 
     idxs = rng.choice(len(pool), size=n_to_pick, replace=False)
+    print("INDEEEEEEEXXXXXXXXX inside the sample_random_atoms_global_pool: ", idxs)
     return [pool[i] for i in idxs]
 
 def run_random_trials(
@@ -230,7 +231,6 @@ def run_experiment(
     # 3. Optimal Q
     # --------------------------------------------------
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)
-
     # --------------------------------------------------
     # 4. Successor features
     # --------------------------------------------------
@@ -240,7 +240,6 @@ def run_experiment(
         convention="entering",
         zero_terminal_features=True,
     )
-
     # --------------------------------------------------
     # 5. CONSTRAINT + ATOM GENERATION (SPEC-BASED)
     # --------------------------------------------------
@@ -256,22 +255,23 @@ def run_experiment(
     )
 
     enabled = set(feedback)
-
     spec = GenerationSpec(
         seed=seed,
 
         demo=DemoSpec(
             enabled=("demo" in enabled),
+            #enabled=False,
             env_fraction=1.0,
             max_steps=1,
             state_fraction=demo_env_fraction,
-            alloc_method="uniform",
+            #alloc_method="uniform",
         ),
 
         pairwise=FeedbackSpec(
             enabled=("pairwise" in enabled),
             total_budget=total_budget if "pairwise" in enabled else 0,
             alloc_method="uniform",
+            alloc_params={"alpha": 0.3}
             # alloc_method="dirichlet",
             # alloc_params={"alpha": 0.3},    
         ),
@@ -314,13 +314,21 @@ def run_experiment(
     # --- Deduplicate Q-only constraints
     U_q_unique = remove_redundant_constraints(U_q)
 
+    print("U_q_unique: ")
+    for i in U_q_unique:
+        print(i)
+    
+    print("U_atoms: ")
+    for i in U_atoms:
+        print(i)
+    
     # --- Deduplicate Q + Atom constraints
-    #if U_atoms is not None and len(U_atoms) > 0:
-    U_union_unique = remove_redundant_constraints(
-        np.vstack([U_q, U_atoms])
-    )
-    # else:
-    #     U_union_unique = U_q_unique
+    if U_atoms is not None and len(U_atoms) > 0:
+        U_union_unique = remove_redundant_constraints(
+            np.vstack([U_q_unique, U_atoms])
+        )
+    else:
+         U_union_unique = U_q_unique
 
     # --- Log diagnostic info
     print(f"|U_q| raw            = {len(U_q)}")
@@ -336,6 +344,12 @@ def run_experiment(
     for i in U_universal:
         print(i)
     
+    #print("constraints per env per atom")
+    #print(U_per_env_atoms)
+    #for i in U_universal:
+    #    print(i)
+    
+
     # --------------------------------------------------
     # 6. TWO-STAGE SCOT
     # --------------------------------------------------

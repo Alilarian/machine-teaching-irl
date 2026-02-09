@@ -260,7 +260,7 @@ def generate_valid_trajectories(
     n,
     *,
     min_length=3,
-    max_horizon=25,
+    max_horizon=150,
     max_workers=8,
     oversample_factor=2,
     rng: np.random.Generator,
@@ -522,14 +522,12 @@ class DemoSpec:
     max_steps: int = 1
     tie_eps: float = 1e-10
 
-
 @dataclass
 class FeedbackSpec:
     enabled: bool = False
     total_budget: int = 0
     alloc_method: str = "dirichlet"
     alloc_params: Optional[Dict[str, Any]] = None
-
 
 @dataclass
 class GenerationSpec:
@@ -544,11 +542,11 @@ class GenerationSpec:
 
     # base trajectory pool (used by pairwise/estop/improvement)
     base_min_length: int = 2
-    base_max_horizon: int = 100
+    base_max_horizon: int = 150
     base_threads: int = 8
 
     # improvement internals
-    n_random_for_improvement: int = 300
+    n_random_for_improvement: int = 10
 
     # estop
     estop_beta: float = 10.0

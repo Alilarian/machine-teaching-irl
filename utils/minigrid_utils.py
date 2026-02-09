@@ -1013,9 +1013,6 @@ def group_atoms_by_type(atoms):
     return grouped
 
 
-
-
-
 def constraints_from_atoms_one_env(
     atoms,
     Psi_s,

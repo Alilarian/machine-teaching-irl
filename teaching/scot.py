@@ -72,7 +72,7 @@ def scot_greedy_family_atoms_tracked(
             constraints = atom_to_constraints(atom, mu_sa, env)
             
             ############################# replace this block
-            # atom_cov = set()
+            atom_cov = set()
             # for v in constraints:
             #     k = key_for(v)
             #     if k in key_to_uix:
