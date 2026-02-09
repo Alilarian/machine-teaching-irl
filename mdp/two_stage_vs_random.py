@@ -167,88 +167,6 @@ def run_random_mdp_scot_trials(
         "coverages": [r["coverage"] for r in results],
     }
 
-
-
-# def run_random_mdp_scot_trials(
-#     *,
-#     envs,
-#     candidates_per_env,
-#     SFs,
-#     U_universal,
-#     n_mdps_to_pick,
-#     seed,
-#     trials,
-#     birl_kwargs,
-# ):
-#     all_regrets = []
-#     mdp_counts = []
-#     constraint_counts = []
-#     coverages = []
-
-#     for t in range(trials):
-#         trial_seed = seed + t
-
-#         # 1) sample MDPs
-#         chosen_mdps = sample_random_mdps(
-#             n_envs=len(envs),
-#             k=n_mdps_to_pick,
-#             seed=trial_seed,
-#         )
-
-#         # 2) restrict atoms
-#         atoms_subset, env_map = restrict_atoms_to_mdps(
-#             candidates_per_env,
-#             chosen_mdps,
-#         )
-
-#         # 3) restrict envs + SFs
-#         envs_subset = [envs[i] for i in chosen_mdps]
-#         SFs_subset = [SFs[i] for i in chosen_mdps]
-
-#         # 4) run SCOT greedy on subset
-#         chosen_atoms_subset, _, _ = scot_greedy_family_atoms_tracked(
-#             U_global=U_universal,
-#             atoms_per_env=atoms_subset,
-#             SFs=SFs_subset,
-#             envs=envs_subset,
-#         )
-
-#         # 5) remap atoms back to original env indices
-
-#         chosen_atoms = [
-#             (env_map[env_idx], atom)
-#             for env_idx, atom in chosen_atoms_subset
-#         ]
-
-#         # 6) constraint recovery
-#         n_c, cov = recover_constraints_and_coverage(
-#             chosen_atoms,
-#             SFs,
-#             envs,
-#             U_universal,
-#         )
-
-#         constraint_counts.append(n_c)
-#         coverages.append(cov)
-#         mdp_counts.append(len(chosen_mdps))
-
-#         # 7) regret
-#         Q_map, _ = birl_atomic_to_Q_lists(
-#             envs,
-#             chosen_atoms,
-#             **birl_kwargs,
-#         )
-
-#         reg = regrets_from_Q(envs, Q_map)
-#         all_regrets.append(reg)
-
-#     return {
-#         "regrets": np.vstack(all_regrets),
-#         "mdp_counts": mdp_counts,
-#         "constraint_counts": constraint_counts,
-#         "coverages": coverages,
-#     }
-
 # =============================================================================
 # Ground-truth reward generator
 # =============================================================================
@@ -410,61 +328,6 @@ def run_random_trials(
         "coverages": [r["coverage"] for r in results],
     }
 
-
-# def run_random_trials(
-#     envs,
-#     candidates_per_env,
-#     n_to_pick,
-#     seed,
-#     *,
-#     trials,
-#     birl_kwargs,
-#     SFs,
-#     U_universal,
-# ):
-#     all_regrets = []
-#     mdp_counts = []
-#     constraint_counts = []
-#     coverages = []
-
-#     for sd in range(trials):
-#         chosen_rand = sample_random_atoms_global_pool(
-#             candidates_per_env,
-#             n_to_pick,
-#             seed=sd + seed,
-#         )
-
-#         # --- MDP count
-#         used_envs = {env_idx for env_idx, _ in chosen_rand}
-#         mdp_counts.append(len(used_envs))
-
-#         # --- Constraints + coverage
-#         n_c, cov = recover_constraints_and_coverage(
-#             chosen_rand,
-#             SFs,
-#             envs,
-#             U_universal,
-#         )
-#         constraint_counts.append(n_c)
-#         coverages.append(cov)
-
-#         # --- Regret
-#         Q_map, _ = birl_atomic_to_Q_lists(
-#             envs,
-#             chosen_rand,
-#             **birl_kwargs,
-#         )
-
-#         reg = regrets_from_Q(envs, Q_map)
-#         all_regrets.append(reg)
-
-#     return {
-#         "regrets": np.vstack(all_regrets),
-#         "mdp_counts": mdp_counts,
-#         "constraint_counts": constraint_counts,
-#         "coverages": coverages,
-#     }
-
 # =============================================================================
 # MAIN EXPERIMENT
 # =============================================================================
@@ -557,27 +420,24 @@ def run_experiment(
         pairwise=FeedbackSpec(
             enabled=("pairwise" in enabled),
             total_budget=total_budget if "pairwise" in enabled else 0,
-            alloc_method="uniform",
-            alloc_params={"alpha": 0.3}
-            # alloc_method="dirichlet",
-            # alloc_params={"alpha": 0.3},    
+            alloc_method=args.alloc_method,
+            alloc_params=None if args.alloc_method == "uniform" else {"alpha": args.alloc},
         ),
 
         estop=FeedbackSpec(
             enabled=("estop" in enabled),
             total_budget=total_budget if "estop" in enabled else 0,
-            alloc_method="uniform",
-            # alloc_method="dirichlet",
-            # alloc_params={"alpha": 0.3},
+            alloc_method=args.alloc_method,
+            alloc_params=None if args.alloc_method == "uniform" else {"alpha": args.alloc},
         ),
 
         improvement=FeedbackSpec(
             enabled=("improvement" in enabled),
             total_budget=total_budget if "improvement" in enabled else 0,
-            alloc_method="uniform",
-            # alloc_method="dirichlet",
-            # alloc_params={"alpha": 0.3},
+            alloc_method=args.alloc_method,
+            alloc_params=None if args.alloc_method == "uniform" else {"alpha": args.alloc},
         ),
+
     )
 
     candidates_per_env = generate_candidate_atoms_for_scot(
