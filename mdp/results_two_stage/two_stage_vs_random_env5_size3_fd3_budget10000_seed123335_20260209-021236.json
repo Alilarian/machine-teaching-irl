@@ -1,0 +1,88 @@
+{
+  "two_stage_regret": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "random_regret": [
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.10468366389864059,
+      0.0
+    ]
+  ],
+  "two_stage_mean": 0.0,
+  "random_mean": 0.02093673277972812,
+  "num_atoms_selected": 3,
+  "num_envs_used": 1,
+  "used_envs": [
+    0
+  ],
+  "U_q_raw": 3,
+  "U_q_unique": 3,
+  "U_atoms_raw": 3,
+  "U_union_unique": 4,
+  "atom_implied_unique": 1,
+  "config": {
+    "seed": 123335,
+    "n_envs": 5,
+    "mdp_size": 3,
+    "feature_dim": 3,
+    "feedback": [
+      "improvement"
+    ],
+    "demo_env_fraction": 0.0,
+    "total_budget": 10000,
+    "random_trials": 1,
+    "birl": {
+      "beta": 10.0,
+      "samples": 100,
+      "stepsize": 0.5
+    }
+  },
+  "two_stage_constraints": {
+    "unique_constraints": 3,
+    "coverage": 0.75
+  },
+  "random_constraints": {
+    "mdp_counts": [
+      2
+    ],
+    "constraint_counts": [
+      1
+    ],
+    "coverages": [
+      0.25
+    ],
+    "mean_mdp_count": 2.0,
+    "mean_unique_constraints": 1.0,
+    "mean_coverage": 0.25
+  },
+  "random_mdp_scot": {
+    "regret": [
+      [
+        2.17414852638138,
+        1.8139269213533282,
+        2.06914417780564,
+        2.0333581063459008,
+        2.29604630712236
+      ]
+    ],
+    "mean_regret": 2.077324807801722,
+    "mdp_counts": [
+      1
+    ],
+    "constraint_counts": [
+      3
+    ],
+    "coverages": [
+      0.75
+    ],
+    "mean_unique_constraints": 3.0,
+    "mean_coverage": 0.75
+  }
+}

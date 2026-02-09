@@ -112,8 +112,6 @@ def build_mdp_coverage_from_constraints_numpy(
 
 
 
-
-
 def scot_greedy_family_atoms_tracked(
     U_global,
     atoms_per_env,

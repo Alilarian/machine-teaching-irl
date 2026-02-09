@@ -32,6 +32,7 @@ from utils import (
     GenerationSpec,
     DemoSpec,
     FeedbackSpec,
+
 )
 from utils.successor_features import max_q_sa_pairs
 from utils.common_helper import calculate_expected_value_difference
@@ -40,6 +41,114 @@ from reward_learning.multi_env_atomic_birl import MultiEnvAtomicBIRL
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
 
 from teaching.two_stage_scot import two_stage_scot
+
+from teaching.scot import scot_greedy_family_atoms_tracked
+
+# =============================================================================
+# Helpers for second baseline
+# =============================================================================
+
+def sample_random_mdps(
+    n_envs,
+    k,
+    seed,
+):
+    rng = np.random.default_rng(seed)
+    return sorted(rng.choice(n_envs, size=k, replace=False).tolist())
+
+def restrict_atoms_to_mdps(
+    candidates_per_env,
+    selected_envs,
+):
+    atoms_subset = []
+    env_map = {}  # old_idx -> new_idx
+
+    for new_i, old_i in enumerate(selected_envs):
+        atoms_subset.append(candidates_per_env[old_i])
+        env_map[new_i] = old_i
+
+    return atoms_subset, env_map
+
+def run_random_mdp_scot_trials(
+    *,
+    envs,
+    candidates_per_env,
+    SFs,
+    U_universal,
+    n_mdps_to_pick,
+    seed,
+    trials,
+    birl_kwargs,
+):
+    all_regrets = []
+    mdp_counts = []
+    constraint_counts = []
+    coverages = []
+
+    for t in range(trials):
+        trial_seed = seed + t
+
+        # 1) sample MDPs
+        chosen_mdps = sample_random_mdps(
+            n_envs=len(envs),
+            k=n_mdps_to_pick,
+            seed=trial_seed,
+        )
+
+        # 2) restrict atoms
+        atoms_subset, env_map = restrict_atoms_to_mdps(
+            candidates_per_env,
+            chosen_mdps,
+        )
+
+        # 3) restrict envs + SFs
+        envs_subset = [envs[i] for i in chosen_mdps]
+        SFs_subset = [SFs[i] for i in chosen_mdps]
+
+        # 4) run SCOT greedy on subset
+        chosen_atoms_subset, _, _ = scot_greedy_family_atoms_tracked(
+            U_global=U_universal,
+            atoms_per_env=atoms_subset,
+            SFs=SFs_subset,
+            envs=envs_subset,
+        )
+
+        # 5) remap atoms back to original env indices
+
+        chosen_atoms = [
+            (env_map[env_idx], atom)
+            for env_idx, atom in chosen_atoms_subset
+        ]
+
+        # 6) constraint recovery
+        n_c, cov = recover_constraints_and_coverage(
+            chosen_atoms,
+            SFs,
+            envs,
+            U_universal,
+        )
+
+        constraint_counts.append(n_c)
+        coverages.append(cov)
+        mdp_counts.append(len(chosen_mdps))
+
+        # 7) regret
+        Q_map, _ = birl_atomic_to_Q_lists(
+            envs,
+            chosen_atoms,
+            **birl_kwargs,
+        )
+
+        reg = regrets_from_Q(envs, Q_map)
+        all_regrets.append(reg)
+
+    return {
+        "regrets": np.vstack(all_regrets),
+        "mdp_counts": mdp_counts,
+        "constraint_counts": constraint_counts,
+        "coverages": coverages,
+    }
+
 
 # =============================================================================
 # Ground-truth reward generator
@@ -423,6 +532,27 @@ def run_experiment(
     print(f"RANDOM mean unique constraints: {np.mean(rand_out['constraint_counts']):.2f}")
     print(f"RANDOM mean constraint coverage: {100*np.mean(rand_out['coverages']):.2f}%")
 
+
+    # --------------------------------------------------
+    # 8.5 Regret — RANDOM-MDP-SCOT (CONTROLLED)
+    # --------------------------------------------------
+    rand_mdp_scot_out = run_random_mdp_scot_trials(
+        envs=envs,
+        candidates_per_env=candidates_per_env,
+        SFs=SFs,
+        U_universal=U_universal,
+        n_mdps_to_pick=num_used_envs,
+        seed=args.seed + 12345,  # avoid coupling
+        trials=random_trials,
+        birl_kwargs=birl_kwargs,
+    )
+
+    reg_rand_mdp_scot = rand_mdp_scot_out["regrets"]
+
+    print(f"RANDOM-MDP-SCOT mean regret: {reg_rand_mdp_scot.mean():.4f}")
+    print(f"RANDOM-MDP-SCOT mean coverage: {100*np.mean(rand_mdp_scot_out['coverages']):.2f}%")
+
+
     # --------------------------------------------------
     # 9. Save
     # --------------------------------------------------
@@ -485,6 +615,17 @@ def run_experiment(
             "mean_unique_constraints": float(np.mean(rand_out["constraint_counts"])),
             "mean_coverage": float(np.mean(rand_out["coverages"])),
         },
+
+    "random_mdp_scot": {
+            "regret": reg_rand_mdp_scot.tolist(),
+            "mean_regret": float(reg_rand_mdp_scot.mean()),
+            "mdp_counts": rand_mdp_scot_out["mdp_counts"],
+            "constraint_counts": rand_mdp_scot_out["constraint_counts"],
+            "coverages": rand_mdp_scot_out["coverages"],
+            "mean_unique_constraints": float(np.mean(rand_mdp_scot_out["constraint_counts"])),
+            "mean_coverage": float(np.mean(rand_mdp_scot_out["coverages"])),
+},
+
     }
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
