@@ -727,10 +727,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-
     if args.alloc_method != "uniform" and args.alloc is None:
         args.alloc = 0.5
-
 
     birl_kwargs = dict(
         beta=args.beta,
