@@ -343,8 +343,11 @@ def run_experiment(
     feedback=("demo", "pairwise", "estop", "improvement"),
     demo_env_fraction=1.0,
     total_budget=50,
+    alloc_method="uniform",
+    alloc=None,
     **birl_kwargs,
 ):
+
     os.makedirs(result_dir, exist_ok=True)
 
     print("\n================= EXPERIMENT START =================\n")
@@ -708,7 +711,26 @@ if __name__ == "__main__":
     parser.add_argument("--stepsize", type=float, default=0.1)
     parser.add_argument("--beta", type=float, default=10.0)
 
+    parser.add_argument(
+        "--alloc_method",
+        type=str,
+        default="uniform",
+        choices=["uniform", "dirichlet"],
+    )
+
+    parser.add_argument(
+        "--alloc",
+        type=float,
+        default=None,
+    )
+
+
     args = parser.parse_args()
+
+
+    if args.alloc_method != "uniform" and args.alloc is None:
+        args.alloc = 0.5
+
 
     birl_kwargs = dict(
         beta=args.beta,
@@ -726,5 +748,7 @@ if __name__ == "__main__":
         feedback=args.feedback,
         demo_env_fraction=args.demo_env_fraction,
         total_budget=args.total_budget,
+        alloc_method=args.alloc_method,
+        alloc=args.alloc,
         **birl_kwargs,
     )
