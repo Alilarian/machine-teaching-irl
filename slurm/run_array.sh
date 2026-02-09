@@ -54,9 +54,9 @@ python two_stage_vs_random.py \
   --n_envs 100 \
   --mdp_size 8 \
   --feature_dim 6 \
-  --feedback demo \
-  --demo_env_fraction 1 \
-  --total_budget 0 \
+  --feedback pairwise \
+  --demo_env_fraction 0 \
+  --total_budget 500000 \
   --random_trials 20 \
   --samples 2000 \
   --stepsize 0.6 \
