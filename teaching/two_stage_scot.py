@@ -5,156 +5,194 @@ from teaching import scot_greedy_family_atoms_tracked
 # ---------------------------------------------------------------------
 # Canonicalization: MUST match Stage-2 (scot_greedy_family_atoms_tracked)
 # ---------------------------------------------------------------------
-def make_key_for(*, normalize=True, round_decimals=12):
-    def key_for(v):
-        v = np.asarray(v)
-        n = np.linalg.norm(v)
-        if n == 0.0 or not np.isfinite(n):
-            return ("ZERO",)
-        vv = (v / n) if normalize else v
-        return tuple(np.round(vv, round_decimals))
-    return key_for
+# def make_key_for(*, normalize=True, round_decimals=12):
+#     def key_for(v):
+#         v = np.asarray(v)
+#         n = np.linalg.norm(v)
+#         if n == 0.0 or not np.isfinite(n):
+#             return ("ZERO",)
+#         vv = (v / n) if normalize else v
+#         return tuple(np.round(vv, round_decimals))
+#     return key_for
 
 # ---------------------------------------------------------------------
 # Stage-1 coverage using canonical keys (FIXED)
 # ---------------------------------------------------------------------
 
-import numpy as np
-
-# def build_mdp_coverage_from_constraints_cosine(
+# def build_mdp_coverage_from_constraints_keys(
 #     U_per_env,
 #     U_universal,
 #     *,
-#     precision=1e-3,
 #     normalize=True,
-#     allow_sign_flip=True,
+#     round_decimals=12,
 # ):
 #     """
-#     Universe membership by cosine similarity, not exact rounded equality.
-#     This matches how you build the global unique set (cos > 1 - precision).
+#     Build MDP coverage sets in the SAME constraint identity space as Stage-2:
+
+#     - Canonicalize each universal constraint into a key (direction-only, rounded).
+#     - Canonicalize each env constraint into a key.
+#     - MDP covers a universal element iff keys match.
 
 #     Returns:
-#       mdp_cov: list[set[int]] coverage sets over universe indices [0..M-1]
+#         mdp_cov: list[set[int]] where each set contains "unique universal key ids"
+#         key_to_uid: dict[key -> uid]
+#         uid_to_key: list[key]
 #     """
-#     U = np.asarray(U_universal, dtype=float)
-#     if U.ndim != 2:
-#         raise ValueError(f"U_universal must be 2D, got shape {U.shape}")
+#     key_for = make_key_for(normalize=normalize, round_decimals=round_decimals)
 
-#     # Normalize universe once
-#     if normalize:
-#         U_norms = np.linalg.norm(U, axis=1, keepdims=True)
-#         good = (U_norms[:, 0] > 0) & np.isfinite(U_norms[:, 0])
-#         U = U[good]
-#         U_norms = U_norms[good]
-#         U = U / U_norms
+#     print("Universal insode the build map:########################################################## ")
+#     print(len(U_per_env))
+#     print(U_per_env[0].shape)
 
-#     M = U.shape[0]
+#     # Unique universe in key-space (collapses duplicates properly)
+#     key_to_uid = {}
+#     uid_to_key = []
+#     for u in np.asarray(U_universal):
+#         k = key_for(u)
+#         if k not in key_to_uid:
+#             key_to_uid[k] = len(uid_to_key)
+#             uid_to_key.append(k)
+
+#     # print("Inside the build_mdp_coverage_from_constraints_keys: ")
+#     # print()
+#     # print(key_to_uid)
+
+    
+#     # Per-env coverage in uid-space
 #     mdp_cov = []
+#     for H_k in U_per_env:
+#         cov_uids = set()
+#         H_k = np.asarray(H_k)
+#         if H_k.size != 0:
+#             for row in H_k:
+#                 #print("ROWWWWWWWWWW")
+#                 #print(row)
+#                 kk = key_for(row)
+#                 #print("KKKKK")
+#                 #print(kk)
+#                 uid = key_to_uid.get(kk, None)
+#                 if uid is not None:
+#                     cov_uids.add(uid)
+#         mdp_cov.append(cov_uids)
 
-#     for H in U_per_env:
-#         H = np.asarray(H, dtype=float)
-#         cov = set()
-
-#         if H.size == 0:
-#             mdp_cov.append(cov)
-#             continue
-
-#         if H.ndim == 1:
-#             H = H.reshape(1, -1)
-
-#         # Normalize env constraints
-#         if normalize:
-#             H_norms = np.linalg.norm(H, axis=1, keepdims=True)
-#             goodH = (H_norms[:, 0] > 0) & np.isfinite(H_norms[:, 0])
-#             H = H[goodH]
-#             H_norms = H_norms[goodH]
-#             if H.size == 0:
-#                 mdp_cov.append(cov)
-#                 continue
-#             H = H / H_norms
-
-#         # Cosine similarity to universe
-#         # sims shape: (num_env_constraints, M)
-#         sims = H @ U.T
-#         if allow_sign_flip:
-#             sims = np.abs(sims)
-
-#         # For each env constraint, pick best matching universe element
-#         best = np.max(sims, axis=1)
-#         argb = np.argmax(sims, axis=1)
-
-#         # Add those above threshold
-#         thresh = 1.0 - precision
-#         for b, j in zip(best, argb):
-#             if b > thresh:
-#                 cov.add(int(j))
-
-#         mdp_cov.append(cov)
-
-#     return mdp_cov
+#     print("Inside the build_mdp_coverage_from_constraints_keys: ")
+#     print()
+#     print(mdp_cov)
+    
+#     return mdp_cov, key_to_uid, uid_to_key
 
 
-def build_mdp_coverage_from_constraints_keys(
-    U_per_env,
-    U_universal,
-    *,
-    normalize=True,
-    round_decimals=12,
-):
+
+
+def normalize_constraints(X, *, normalize=True):
     """
-    Build MDP coverage sets in the SAME constraint identity space as Stage-2:
-
-    - Canonicalize each universal constraint into a key (direction-only, rounded).
-    - Canonicalize each env constraint into a key.
-    - MDP covers a universal element iff keys match.
+    Normalize constraint vectors to unit length.
+    Zero / invalid vectors are removed.
 
     Returns:
-        mdp_cov: list[set[int]] where each set contains "unique universal key ids"
-        key_to_uid: dict[key -> uid]
-        uid_to_key: list[key]
+        Xn : (k, d) normalized constraints
+        mask : boolean mask of kept rows
     """
-    key_for = make_key_for(normalize=normalize, round_decimals=round_decimals)
+    X = np.asarray(X, dtype=float)
+    if X.size == 0:
+        return X.reshape(0, X.shape[-1]), np.zeros(0, dtype=bool)
 
-    print("Universal insode the build map:########################################################## ")
-    print(len(U_per_env))
-    print(U_per_env[0].shape)
+    if not normalize:
+        return X, np.ones(len(X), dtype=bool)
 
-    # Unique universe in key-space (collapses duplicates properly)
-    key_to_uid = {}
-    uid_to_key = []
-    for u in np.asarray(U_universal):
-        k = key_for(u)
-        if k not in key_to_uid:
-            key_to_uid[k] = len(uid_to_key)
-            uid_to_key.append(k)
+    norms = np.linalg.norm(X, axis=1)
+    good = (norms > 0) & np.isfinite(norms)
+    Xn = X[good] / norms[good][:, None]
+    return Xn, good
 
-    # print("Inside the build_mdp_coverage_from_constraints_keys: ")
-    # print()
-    # print(key_to_uid)
+def build_universal_index(
+    U_universal,
+    *,
+    eps=1e-6,
+    normalize=True,
+    allow_sign_flip=True,
+):
+    """
+    Deduplicate universal constraints numerically using cosine similarity.
 
-    
-    # Per-env coverage in uid-space
+    Returns:
+        Uu : (M, d) unique normalized constraints
+    """
+    U, _ = normalize_constraints(U_universal, normalize=normalize)
+    if U.size == 0:
+        return U
+
+    uniq = []
+    for u in U:
+        if not uniq:
+            uniq.append(u)
+            continue
+
+        sims = np.dot(np.vstack(uniq), u)
+        if allow_sign_flip:
+            sims = np.abs(sims)
+
+        if np.max(sims) < 1.0 - eps:
+            uniq.append(u)
+
+    return np.vstack(uniq)
+
+def build_mdp_coverage_from_constraints_numpy(
+    U_per_env,
+    U_universal_unique,
+    *,
+    eps=1e-6,
+    normalize=True,
+    allow_sign_flip=True,
+):
+    """
+    Compute per-MDP coverage over universal constraints using cosine similarity.
+
+    Returns:
+        mdp_cov : list[set[int]]
+    """
+    Uu = np.asarray(U_universal_unique, dtype=float)
+    if Uu.ndim != 2:
+        raise ValueError("U_universal_unique must be 2D")
+
+    # Normalize universe once
+    Uu, _ = normalize_constraints(Uu, normalize=normalize)
+    M = Uu.shape[0]
+
     mdp_cov = []
-    for H_k in U_per_env:
-        cov_uids = set()
-        H_k = np.asarray(H_k)
-        if H_k.size != 0:
-            for row in H_k:
-                #print("ROWWWWWWWWWW")
-                #print(row)
-                kk = key_for(row)
-                #print("KKKKK")
-                #print(kk)
-                uid = key_to_uid.get(kk, None)
-                if uid is not None:
-                    cov_uids.add(uid)
-        mdp_cov.append(cov_uids)
 
-    print("Inside the build_mdp_coverage_from_constraints_keys: ")
-    print()
-    print(mdp_cov)
-    
-    return mdp_cov, key_to_uid, uid_to_key
+    for H in U_per_env:
+        H = np.asarray(H, dtype=float)
+        cov = set()
+
+        if H.size == 0:
+            mdp_cov.append(cov)
+            continue
+
+        Hn, _ = normalize_constraints(H, normalize=normalize)
+        if Hn.size == 0:
+            mdp_cov.append(cov)
+            continue
+
+        sims = Hn @ Uu.T
+        if allow_sign_flip:
+            sims = np.abs(sims)
+
+        # any env constraint that matches a universe element
+        hits = sims >= (1.0 - eps)
+        covered = np.any(hits, axis=0)
+
+        cov.update(np.nonzero(covered)[0].tolist())
+        mdp_cov.append(cov)
+
+    return mdp_cov
+
+
+
+
+
+
+
 
 def greedy_select_mdps_unweighted(mdp_cov, universe_size):
     """
@@ -257,20 +295,47 @@ def two_stage_scot(
     # --------------------------------------------------------
     # Stage 1: Build MDP coverage in CANONICAL key space (FIXED)
     # --------------------------------------------------------
-    mdp_cov, key_to_uid, uid_to_key = build_mdp_coverage_from_constraints_keys(
-        U_per_env,
+    
+    ############################################################################################## replacing this block with numpy based instead of key
+    
+    # mdp_cov, key_to_uid, uid_to_key = build_mdp_coverage_from_constraints_keys(
+    #     U_per_env,
+    #     U_universal,
+    #     normalize=normalize,
+    #     round_decimals=round_decimals,
+    # )
+
+    # print("MDP coverages (uid-space):")
+    # print(mdp_cov)
+    # print(f"Stage-1 unique-universe size (after key collapse): {len(uid_to_key)}")
+
+    # selected_mdps, s1_stats = greedy_select_mdps_unweighted(
+    #     mdp_cov,
+    #     len(uid_to_key),
+    # )
+
+    ############################################################################################## replacing this block with numpy based instead of key
+    
+    # Deduplicate universe numerically
+    U_universal_unique = build_universal_index(
         U_universal,
+        eps=1e-6,
         normalize=normalize,
-        round_decimals=round_decimals,
+        allow_sign_flip=True,
     )
 
-    print("MDP coverages (uid-space):")
-    print(mdp_cov)
-    print(f"Stage-1 unique-universe size (after key collapse): {len(uid_to_key)}")
+    # Build MDP coverage numerically
+    mdp_cov = build_mdp_coverage_from_constraints_numpy(
+        U_per_env,
+        U_universal_unique,
+        eps=1e-6,
+        normalize=normalize,
+        allow_sign_flip=True,
+    )
 
     selected_mdps, s1_stats = greedy_select_mdps_unweighted(
         mdp_cov,
-        len(uid_to_key),
+        universe_size=len(U_universal_unique),
     )
 
     print("Selected MDPs inside the two-stage:")
