@@ -57,7 +57,6 @@ def _generate_demos_only_worker(args):
 
     return demos
 
-
 def generate_demos_from_policies_multi(
     mdps,
     pi_list,
@@ -636,7 +635,7 @@ class Atom:
 AllocMethod = Literal["uniform", "dirichlet", "sparse_poisson"]
 
 @dataclass
-class DemoSpec:
+class DemoSpec_minigrid:
     enabled: bool
     env_fraction: float
     state_fraction: Optional[float] = None
@@ -645,19 +644,19 @@ class DemoSpec:
     max_steps: int = 1
 
 @dataclass
-class FeedbackSpec:
+class FeedbackSpec_minigrid:
     enabled: bool
     total_budget: int
     alloc_method: AllocMethod
     alloc_params: Dict
 
 @dataclass
-class GenerationSpec:
+class GenerationSpec_minigrid:
     seed: int
-    demo: Optional[DemoSpec] = None
-    pairwise: Optional[FeedbackSpec] = None
-    estop: Optional[FeedbackSpec] = None
-    improvement: Optional[FeedbackSpec] = None
+    demo: Optional[DemoSpec_minigrid] = None
+    pairwise: Optional[FeedbackSpec_minigrid] = None
+    estop: Optional[FeedbackSpec_minigrid] = None
+    improvement: Optional[FeedbackSpec_minigrid] = None
 
 def allocate_budget(num_envs, total_budget, method, params, rng):
     if total_budget <= 0:
@@ -730,8 +729,6 @@ def generate_demo_atoms(mdps, pi_list, spec, rng, enumerate_states):
 
     return atoms_per_env
 
-
-
 def subsample_atoms(atoms_per_env, spec, rng):
     num_envs = len(atoms_per_env)
     alloc = allocate_budget(
@@ -752,7 +749,6 @@ def subsample_atoms(atoms_per_env, spec, rng):
         selected[env_id] = [atoms[i] for i in idx]
 
     return selected
-
 
 ## multi process that across env?
 def generate_feedback_candidate_atoms(
@@ -801,7 +797,7 @@ def generate_candidate_atoms_for_scot_minigrid(
     spec,
     enumerate_states,
     n_trajs_per_state=5,
-    max_horizon=30,
+    max_horizon=100,
 ):
     """
     Self-contained atom generation for SCOT in MiniGrid LavaWorlds.

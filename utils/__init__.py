@@ -25,14 +25,14 @@ from .feedback_budgeting import (
     GenerationSpec, DemoSpec, FeedbackSpec
 )
 
-#from .minigrid_lava_generator import *
+from .minigrid_lava_generator import *
 
-#from .minigrid_utils import *
+from .minigrid_utils import *
 
 from .generate_feedback import sample_random_atoms_like_scot
 
 
-#from .feedback_budgeting import GenerationSpec, DemoSpec, FeedbackSpec
+from .feedback_budgeting import GenerationSpec, DemoSpec, FeedbackSpec
 
 # Successor features
 from .successor_features import (
@@ -41,7 +41,11 @@ from .successor_features import (
 
 )
 
-#from .feedback_budgeting_minigrid import *
+from .feedback_budgeting_minigrid import (FeedbackSpec_minigrid, 
+                                          DemoSpec_minigrid,
+                                          GenerationSpec_minigrid,
+                                          generate_candidate_atoms_for_scot_minigrid
+)
 
 
 # Constraint extraction

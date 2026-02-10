@@ -16,7 +16,7 @@ FEATURE_SET = "L1.3"   # or pass as argument later
 
 W_MAP = {
     "L1.2": np.array([-0.05, -2.0, -0.01])/np.linalg.norm([-0.05, -2.0, -0.01]),            # [dist, on_lava, step]
-    "L1.3": np.array([-0.8, -0.1, -5.0, -0.05])/np.linalg.norm([-0.8, -0.1, -5.0, -0.05]),       # [dist, lava_ahead, on_lava, step]
+    "L1.3": np.array([-0.8, -0.5, -5.0, -0.05])/np.linalg.norm([-0.8, -0.5, -9.0, -0.1]),       # [dist, lava_ahead, on_lava, step]
 }
 
 def manhattan(p, q):

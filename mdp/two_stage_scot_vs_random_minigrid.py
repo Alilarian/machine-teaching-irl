@@ -1,12 +1,12 @@
 # =============================================================================
-# Two-Stage SCOT vs Random (GLOBAL POOL) — FULL EXPERIMENT
+# Two-Stage SCOT vs Random (GLOBAL POOL) — FULL EXPERIMENT (KEY-BASED)
 # =============================================================================
-import argparse
-import json
+
 import os
 import sys
 import time
 import numpy as np
+
 # -----------------------------------------------------------------------------
 # Path setup
 # -----------------------------------------------------------------------------
@@ -17,7 +17,7 @@ if module_path not in sys.path:
 # ---------------------------
 # Imports from your codebase
 # ---------------------------
-
+from utils.feedback_budgeting_minigrid import GenerationSpec_minigrid, DemoSpec_minigrid
 from utils.minigrid_lava_generator import generate_lavaworld, enumerate_states
 from utils import (
     value_iteration_next_state_multi,
@@ -25,99 +25,100 @@ from utils import (
     generate_demos_from_policies_multi,
     constraints_from_demos_next_state_multi,
     remove_redundant_constraints,
-    GenerationSpec,
-    DemoSpec,
-    FeedbackSpec,
+    FeedbackSpec_minigrid,
     generate_candidate_atoms_for_scot_minigrid,
     constraints_from_atoms_multi_env,
 )
 
-# IMPORTANT: use the no-leak two-stage implementation
-# (adjust import path to wherever you placed it)
-from teaching.two_stage_scot_minigrid import two_stage_scot_minigrid
+# ---------------------------
+# KEY-BASED Two-Stage SCOT
+# ---------------------------
+from teaching.two_stage_scot_minigrid import (
+    two_stage_scot,
+    make_key_for,
+)
 
 # =====================================================
 # Pipeline configuration
 # =====================================================
-SEED = 1230
-N_ENVS = 10
+SEED = 124
+N_ENVS = 5
 GRID_SIZE = 10
 GAMMA = 0.99
 N_JOBS = None  # use all cores
+
 # -----------------------------------------------------
-# Atom generation spec (example – tune freely)
+# Atom generation spec
 # -----------------------------------------------------
-GEN_SPEC = GenerationSpec(
+GEN_SPEC = GenerationSpec_minigrid(
     seed=SEED,
-    # demo=DemoSpec(
-    #     enabled=True,
-    #     env_fraction=1.0,
-    #     state_fraction=1,
-    # ),
-    demo=None,
-    pairwise=FeedbackSpec(
-        enabled=True,
-        total_budget=4000,
-        alloc_method="uniform",
-        alloc_params={},
+    
+    demo=DemoSpec_minigrid(
+    enabled=True,
+    env_fraction=1,
+    state_fraction=1
+
     ),
-    #pairwise=None,
+
+    # pairwise=FeedbackSpec_minigrid(
+    #     enabled=True,
+    #     total_budget=50000,
+    #     alloc_method="uniform",
+    #     alloc_params={},
+    # ),
     estop=None,
     improvement=None,
 )
 
 # =====================================================
-# Helper: key-based coverage report (matches stage-2)
+# Helper: KEY-based coverage report (matches Stage-1 & Stage-2)
 # =====================================================
-def _make_key_for(normalize=True, round_decimals=12):
-    def key_for(v):
-        v = np.asarray(v, dtype=float)
-        n = np.linalg.norm(v)
-        if n == 0.0 or not np.isfinite(n):
-            return ("ZERO",)
-        vv = (v / n) if normalize else v
-        return tuple(np.round(vv, round_decimals))
-    return key_for
-
-def coverage_report(U_universal, U_per_env, selected_envs, normalize=True, round_decimals=12):
+def coverage_report_key_based(
+    U_universal,
+    U_per_env_envlevel,
+    selected_envs,
+    *,
+    normalize=True,
+    round_decimals=12,
+):
     """
-    Returns coverage stats in the same canonical key space as SCOT.
+    Coverage report in canonical KEY space (the same identity used by key-based SCOT).
     """
-    key_for = _make_key_for(normalize=normalize, round_decimals=round_decimals)
+    key_for = make_key_for(normalize=normalize, round_decimals=round_decimals)
 
     # Universe keys
-    U_keys = [key_for(u) for u in np.asarray(U_universal)]
-    U_keyset = set(U_keys)
+    key_to_uid = {}
+    for u in U_universal:
+        k = key_for(u)
+        if k not in key_to_uid:
+            key_to_uid[k] = len(key_to_uid)
+    universe = set(key_to_uid.values())
 
-    # Coverage for any set of env ids
     def covered_by(env_ids):
         covered = set()
-        for k in env_ids:
-            H = U_per_env[k]
-            if H is None:
+        for e in env_ids:
+            H = U_per_env_envlevel[e]
+            if H is None or len(H) == 0:
                 continue
             H = np.asarray(H, dtype=float)
-            if H.size == 0:
-                continue
             if H.ndim == 1:
                 H = H[None, :]
             for row in H:
-                covered.add(key_for(row))
+                k = key_for(row)
+                uid = key_to_uid.get(k, None)
+                if uid is not None:
+                    covered.add(uid)
         return covered
 
     cov_selected = covered_by(selected_envs)
-    cov_all = covered_by(range(len(U_per_env)))
-
-    # Intersect with universe (should already match, but keep clean)
-    cov_selected &= U_keyset
-    cov_all &= U_keyset
+    cov_all = covered_by(range(len(U_per_env_envlevel)))
 
     return {
-        "universe_size_keys": len(U_keyset),
+        "universe_size": len(universe),
         "covered_by_selected": len(cov_selected),
         "covered_by_all_envs": len(cov_all),
-        "coverage_frac_selected": (len(cov_selected) / max(len(U_keyset), 1)),
-        "coverage_frac_all_envs": (len(cov_all) / max(len(U_keyset), 1)),
+        "coverage_frac_selected": len(cov_selected) / max(len(universe), 1),
+        "coverage_frac_all_envs": len(cov_all) / max(len(universe), 1),
     }
 
 # =====================================================
@@ -138,7 +139,7 @@ def main():
     )
 
     print(f"Generated {len(mdps)} environments")
-    print("Sample goal positions:", meta["goals"][:3])
+    print("Sample goal positions:", meta["goals"][: min(3, len(meta.get('goals', [])))])
 
     # --------------------------------------------------
     print("\n==============================")
@@ -199,7 +200,7 @@ def main():
         n_jobs=N_JOBS,
     )
 
-    U_q = np.vstack([c for env in U_q_per_env for c in env])
+    U_q = np.vstack([c for env in U_q_per_env for c in env]) if len(U_q_per_env) else np.zeros((0, Psi_s_list[0].shape[1]))
     print(f"Total demo constraints: {len(U_q)}")
 
     # --------------------------------------------------
@@ -220,7 +221,7 @@ def main():
 
     # --------------------------------------------------
     print("\n==============================")
-    print("7) Constraints from atoms")
+    print("7) Constraints from atoms (STRICT per-atom lists)")
     print("==============================")
 
     U_atoms_per_env = constraints_from_atoms_multi_env(
@@ -230,100 +231,115 @@ def main():
         gamma=GAMMA,
     )
 
-    # # Env-level aggregation for Stage-1 and coverage_report
-    # d = Psi_s_list[0].shape[1]
-    # U_atoms_envlevel = []
-    # for env in U_atoms_per_env:
-    #     flat = [c for atom_cs in env for c in atom_cs]
-    #     U_atoms_envlevel.append(np.vstack(flat) if len(flat) else np.zeros((0, d)))
+    print("U_atoms_per_env")
+    print(U_atoms_per_env)
 
-    # Flatten for logging / optional union
+    # Sanity check: strict alignment must hold
+    for e in range(len(atoms_per_env)):
+        if len(atoms_per_env[e]) != len(U_atoms_per_env[e]):
+            raise RuntimeError(
+                f"Env {e}: atoms/constraints mismatch "
+                f"({len(atoms_per_env[e])} atoms vs {len(U_atoms_per_env[e])} constraint-lists)"
+            )
+
+    # Env-level aggregation for Stage-1 and coverage report (NO numeric dedup here)
+    d = Psi_s_list[0].shape[1]
+    U_atoms_envlevel = []
+    for env_constraints_per_atom in U_atoms_per_env:
+        flat = []
+        for atom_cs in env_constraints_per_atom:
+            for c in atom_cs:
+                flat.append(np.asarray(c, dtype=float))
+        if len(flat):
+            U_atoms_envlevel.append(np.vstack(flat))
+        else:
+            U_atoms_envlevel.append(np.zeros((0, d)))
+
+    # Flatten for logging only
     U_atoms_flat = [c for env in U_atoms_per_env for atom_cs in env for c in atom_cs]
-    U_atoms = np.vstack(U_atoms_flat) if len(U_atoms_flat) > 0 else None
-
-    print("|U_atoms| raw =", 0 if U_atoms is None else len(U_atoms))
+    U_atoms = np.vstack(U_atoms_flat) if len(U_atoms_flat) else np.zeros((0, d))
+    print("|U_atoms| raw =", len(U_atoms))
 
     # --------------------------------------------------
     print("\n==============================")
-    print("8) Deduplication")
+    print("8) Deduplication (building universal set)")
     print("==============================")
 
-    U_union_unique = remove_redundant_constraints(np.vstack([U_q, U_atoms]))
+    # Note: remove_redundant_constraints is numeric; acceptable for making U_universal compact.
+    # SCOT itself uses KEY identity, so any remaining numeric duplicates won't break correctness.
+    U_atom_unique = remove_redundant_constraints(U_atoms) if len(U_atoms) else np.zeros((0, d))
+    U_q_unique = remove_redundant_constraints(U_q) if len(U_q) else np.zeros((0, d))
 
-    U_q_unique = remove_redundant_constraints(U_q)
-    #U_union_unique = U_q_unique  # (you chose no-union for now)
+    U_union_unique = remove_redundant_constraints(
+        np.vstack([U_q_unique, U_atom_unique])
+    ) if (len(U_q_unique) + len(U_atom_unique)) else np.zeros((0, d))
 
     print(f"|U_q| raw            = {len(U_q)}")
     print(f"|U_q| unique         = {len(U_q_unique)}")
-    print(f"|U_atoms| raw        = {0 if U_atoms is None else len(U_atoms)}")
+    print(f"|U_atoms| raw        = {len(U_atoms)}")
+    print(f"|U_atoms| unique     = {len(U_atom_unique)}")
     print(f"|U_q ∪ U_atoms| uniq = {len(U_union_unique)}")
-    print(f"Atom-implied uniques = {len(U_union_unique) - len(U_q_unique)}")
+    print(f"Atom-implied uniques = {max(len(U_union_unique) - len(U_q_unique), 0)}")
 
     # --------------------------------------------------
     print("\n==============================")
     print("9) Final universal set ready")
     print("==============================")
 
-    U_universal = U_union_unique
+    U_universal = np.asarray(U_union_unique, dtype=float)
+    if U_universal.ndim == 1:
+        U_universal = U_universal[None, :]
     print("Final |U| =", len(U_universal))
 
-    # --------------------------------------------------
+    # ----------------------------------------------
     print("\n==============================")
-    print("10) Two-Stage SCOT (NO LEAK)")
+    print("10) Two-Stage SCOT (KEY-BASED, NO LEAK)")
     print("==============================")
 
-    two_stage_out = two_stage_scot_minigrid(
+    two_stage_out = two_stage_scot(
         U_universal=U_universal,
-        U_per_env_atoms_envlevel=U_atoms_envlevel,  # Stage-1
-        constraints_per_env_atoms=U_atoms_per_env,  # Stage-2
+        U_per_env_atoms_envlevel=U_atoms_envlevel,     # Stage-1 env-level
+        constraints_per_env_per_atom=U_atoms_per_env,  # Stage-2 per-atom (STRICT)
         candidates_per_env=atoms_per_env,
-        SFs=Psi_s_list,
-        envs=mdps,
         normalize=True,
         round_decimals=12,
-        verbose=True,
     )
 
     selected_mdps = two_stage_out["selected_mdps"]
     chosen = two_stage_out["chosen"]
+    activated_envs = two_stage_out["activated_envs"]
 
-    cov = coverage_report(
+    cov = coverage_report_key_based(
         U_universal=U_universal,
-        U_per_env=U_atoms_envlevel,   # env-level
+        U_per_env_envlevel=U_atoms_envlevel,
         selected_envs=selected_mdps,
         normalize=True,
         round_decimals=12,
     )
 
-
-    # Atom stats
-    num_selected_mdps = len(selected_mdps)
-    num_selected_atoms = len(chosen)
-    activated_envs = two_stage_out["activated_envs"]
-
+    # --------------------------------------------------
     print("\n--- Two-Stage Summary ---")
-    print(f"Selected MDPs (Stage-1): {num_selected_mdps} / {len(mdps)}")
+    print(f"Selected MDPs (Stage-1): {len(selected_mdps)} / {len(mdps)}")
     print("Selected MDP ids:", selected_mdps)
     print(f"Activated envs (Stage-2): {len(activated_envs)}")
     print("Activated env ids:", activated_envs)
-    print(f"Selected atoms (Stage-2): {num_selected_atoms}")
+    print(f"Selected atoms (Stage-2): {len(chosen)}")
     print(f"Waste (selected - activated): {two_stage_out['waste']}")
 
-    print("\n--- Coverage (key-space) ---")
-    print(f"Universe size (unique keys): {cov['universe_size_keys']}")
+    print("\n--- Coverage (KEY-SPACE) ---")
+    print(f"Universe size (unique keys): {cov['universe_size']}")
     print(f"Covered by selected envs:    {cov['covered_by_selected']} "
           f"({cov['coverage_frac_selected']:.3f})")
     print(f"Covered by ALL envs:         {cov['covered_by_all_envs']} "
           f"({cov['coverage_frac_all_envs']:.3f})")
 
-    # If stage-2 provides final coverage in its own stats, print it too
     s2_final_cov = two_stage_out["s2_stats"].get("final_coverage", None)
     if s2_final_cov is not None:
-        print(f"\nStage-2 reported final coverage: {s2_final_cov}")
+        print(f"\nStage-2 reported final coverage (key-space): {s2_final_cov}")
 
     print("\nPipeline finished successfully.\n")
 
 
 # =====================================================
 if __name__ == "__main__":
-    main() 
+    main()

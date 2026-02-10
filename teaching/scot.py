@@ -3,10 +3,6 @@ from utils import atom_to_constraints
 import time
 
 
-
-
-
-
 def normalize_constraints(X, *, normalize=True):
     """
     Normalize constraint vectors to unit length.
@@ -109,7 +105,6 @@ def build_mdp_coverage_from_constraints_numpy(
         mdp_cov.append(cov)
 
     return mdp_cov
-
 
 
 def scot_greedy_family_atoms_tracked(
@@ -288,3 +283,4 @@ def scot_greedy_family_atoms_tracked(
     env_stats["heuristic_computation_time"] = 0.0  # Naive has no heuristic
     
     return chosen, env_stats, chosen_constraints
+

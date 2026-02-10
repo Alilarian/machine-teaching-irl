@@ -309,7 +309,6 @@ def compute_successor_features_multi(
     Psi_sa_list, Psi_s_list = zip(*results)
     return list(Psi_sa_list), list(Psi_s_list)
 
-
 def generate_state_action_demos(states, pi, terminal_mask, idx_of):
     """
     states : iterable of (y,x,d)
@@ -327,7 +326,6 @@ def generate_state_action_demos(states, pi, terminal_mask, idx_of):
 
     return demos
 
-
 def _generate_demos_only_worker(args):
     mdp, pi = args
 
@@ -341,7 +339,6 @@ def _generate_demos_only_worker(args):
     )
 
     return demos
-
 
 def generate_demos_from_policies_multi(
     mdps,
@@ -501,408 +498,63 @@ def constraints_from_demos_next_state_multi(
 
     return constraints_per_env
 
-
-# ---------------------------
-# Feedback generation functions
-# ---------------------------
-
-def generate_random_trajectories_from_state(
-    start_state,
-    n_trajs,
-    wall_mask,
-    goal_yx,
-    lava_mask,
-    max_horizon=30,
-    seed=0,
-):
-    rng = np.random.default_rng(seed)
-    #print(start_state)
-    return [
-        rollout_random_trajectory(
-            start_state,
-            wall_mask,
-            goal_yx,
-            lava_mask,
-            max_horizon=max_horizon,
-            rng=rng,
-        )
-        for _ in range(n_trajs)
-    ]
-
-def generate_trajectory_pool(
-    states,
-    terminal_mask,
-    wall_mask,
-    goal_yx,
-    lava_mask,
-    n_trajs_per_state=5,
-    max_horizon=30,
-):
-    
-    
-    pool = []
-    for i, s in enumerate(states):
-        if terminal_mask[i]:
-            continue
-
-        trajs = generate_random_trajectories_from_state(
-            start_state=s,
-            n_trajs=n_trajs_per_state,
-            wall_mask=wall_mask,
-            goal_yx=goal_yx,
-            lava_mask=lava_mask,
-            max_horizon=max_horizon,
-            seed=i,
-        )
-        pool.extend(trajs)
-
-    return pool
-
-def _trajectory_pool_worker(args):
-    (
-        mdp,
-        n_trajs_per_state,
-        max_horizon,
-    ) = args
-
-    #states = np.arange(mdp["T"].shape[0])
-    #enumerate_states()
-
-    pool = generate_trajectory_pool(
-        states=mdp["states"],
-        terminal_mask=mdp["terminal"],
-        wall_mask=mdp["wall_mask"],
-        goal_yx=mdp["goal_yx"],
-        lava_mask=mdp["lava_mask"],
-        n_trajs_per_state=n_trajs_per_state,
-        max_horizon=max_horizon,
-    )
-
-    return pool
-
-def generate_trajectory_pools_multi(
-    mdps,
-    n_trajs_per_state=5,
-    max_horizon=30,
-    n_jobs=None,
-):
-    if n_jobs is None:
-        n_jobs = cpu_count()
-
-    args = [
-        (mdp, n_trajs_per_state, max_horizon)
-        for mdp in mdps
-    ]
-
-    with Pool(n_jobs) as pool:
-        traj_pools = pool.map(_trajectory_pool_worker, args)
-
-    return traj_pools
-
-def simulate_human_estop_one_mdp(
-    traj,
-    mdp,
-    theta_true,
-    beta=2.0,
-):
-    """
-    Compatible E-stop simulation.
-
-    traj : list of (s, a, s_next)
-    mdp  : mdp dict containing Phi
-    """
-    Phi = mdp["Phi"]
-    idx_of = mdp["idx_of"] if "idx_of" in mdp else None
-
-    def reward(sp):
-        if idx_of is not None:
-            sp_idx = idx_of[sp]
-        else:
-            sp_idx = sp
-        return Phi[sp_idx] @ theta_true
-
-    traj_len = len(traj)
-
-    # full trajectory return
-    full_reward = sum(reward(sp) for (_, _, sp) in traj)
-
-    log_probs = []
-    cumulative = 0.0
-
-    for t in range(traj_len):
-        _, _, sp = traj[t]
-        cumulative += reward(sp)
-
-        num = beta * cumulative
-        den = logsumexp([beta * full_reward, num])
-        log_probs.append(num - den)
-
-    t_stop = int(np.argmax(log_probs))
-    return (traj, t_stop)
-
-def trajectory_return(
-    traj,
-    Phi,
-    theta,
-    gamma=0.99,
-):
-    """
-    traj: list of (s, a, s_next)
-    """
-    theta = l2_normalize(theta)
-    ret = 0.0
-    g = 1.0
-
-    for (_s, _a, sp) in traj:
-        sp_idx = Phi["idx_of"][sp]
-        r = Phi["Phi"][sp_idx] @ theta
-        ret += g * r
-        g *= gamma
-
-    return ret
-
-def generate_pairwise_preferences(
-    trajectories,
-    mdp,
-    theta_true,
-    gamma=0.99,
-    n_pairs=1000,
-    seed=0,
-):
-    rng = np.random.default_rng(seed)
-    prefs = []
-
-    returns = [
-        trajectory_return(traj, mdp, theta_true, gamma)
-        for traj in trajectories
-    ]
-
-    N = len(trajectories)
-
-    for _ in range(n_pairs):
-        i, j = rng.choice(N, size=2, replace=False)
-
-        if returns[i] == returns[j]:
-            continue
-
-        if returns[i] > returns[j]:
-            prefs.append((trajectories[i], trajectories[j]))
-        else:
-            prefs.append((trajectories[j], trajectories[i]))
-
-    return prefs
-
-def simulate_correction_one(
-    traj,
-    mdp,
-    theta_true,
-    num_random_trajs=10,
-    max_horizon=None,
-):
-    """
-    Given an existing trajectory τ, attempt to find a better trajectory
-    starting from the SAME start state.
-
-    Returns:
-        (tau_improved, tau_original)
-        or None if no improvement found
-    """
-    start_state = traj[0][0]
-    
-
-    # use original length unless overridden
-    horizon = len(traj) if max_horizon is None else max_horizon
-
-    original_return = trajectory_return(traj, mdp, theta_true)
-    best_traj = traj
-    best_return = original_return
-
-    rng = np.random.default_rng()
-
-    for _ in range(num_random_trajs):
-        new_traj = rollout_random_trajectory(
-            start_state=start_state,
-            wall_mask=mdp["wall_mask"],
-            goal_yx=mdp["goal_yx"],
-            lava_mask=mdp["lava_mask"],
-            max_horizon=horizon,
-            rng=rng,
-        )
-
-        if len(new_traj) == 0:
-            continue
-
-        new_return = trajectory_return(new_traj, mdp, theta_true)
-
-        if new_return > best_return:
-            best_return = new_return
-            best_traj = new_traj
-
-    if best_traj is traj:
-        return None  # no improvement found
-
-    return (best_traj, traj)
-
-def generate_correction_feedback(
-    trajectories,
-    mdp,
-    theta_true,
-    num_random_trajs=10,
-):
-    """
-    Generate correction (improvement) feedback:
-    (tau_improved ≻ tau_original), same start state.
-    """
-    corrections = []
-
-    for traj in trajectories:
-        if len(traj) == 0:
-            continue
-
-        corr = simulate_correction_one(
-            traj=traj,
-            mdp=mdp,
-            theta_true=theta_true,
-            num_random_trajs=num_random_trajs,
-        )
-
-        if corr is not None:
-            corrections.append(corr)
-
-    return corrections
-
-def _feedback_worker(args):
-    (
-        trajectories,
-        mdp,
-        theta_true,
-        gamma,
-        n_pairs,
-        seed,
-        num_random_trajs,
-        estop_beta,
-    ) = args
-
-    # ---------------------------
-    # Pairwise preferences
-    # ---------------------------
-    pairwise = generate_pairwise_preferences(
-        trajectories=trajectories,
-        mdp=mdp,
-        theta_true=theta_true,
-        gamma=gamma,
-        n_pairs=n_pairs,
-        seed=seed,
-    )
-
-    # ---------------------------
-    # Correction feedback
-    # ---------------------------
-    corrections = generate_correction_feedback(
-        trajectories=trajectories,
-        mdp=mdp,
-        theta_true=theta_true,
-        num_random_trajs=num_random_trajs,
-    )
-
-    # ---------------------------
-    # E-stop feedback
-    # ---------------------------
-    estops = []
-    for traj in trajectories:
-        if len(traj) == 0:
-            continue
-        estops.append(
-            simulate_human_estop_one_mdp(
-                traj=traj,
-                mdp=mdp,
-                theta_true=theta_true,
-                beta=estop_beta,
-            )
-        )
-
-    return {
-        "pairwise": pairwise,
-        "corrections": corrections,
-        "estop": estops,
-    }
-
-def generate_feedback_multi(
-    traj_pools,
-    mdps,
-    gamma=0.99,
-    n_pairs=1000,
-    num_random_trajs=10,
-    estop_beta=10.0,
-    n_jobs=None,
-):
-    if n_jobs is None:
-        n_jobs = cpu_count()
-
-    args = [
-        (
-            trajs,
-            mdp,
-            mdp["true_w"],   # ← pull ground-truth reward from the MDP
-            gamma,
-            n_pairs,
-            i,               # seed
-            num_random_trajs,
-            estop_beta,
-        )
-        for i, (trajs, mdp) in enumerate(zip(traj_pools, mdps))
-    ]
-
-    with Pool(n_jobs) as pool:
-        results = pool.map(_feedback_worker, args)
-
-    pairwise_list   = [r["pairwise"]    for r in results]
-    correction_list = [r["corrections"] for r in results]
-    estop_list      = [r["estop"]       for r in results]
-
-    return pairwise_list, correction_list, estop_list
-
-def generate_random_feedback_pipeline_multi(
-        
-    mdps,
-    theta_true_list,
-    n_trajs_per_state=5,
-    max_horizon=30,
-    gamma=0.99,
-    n_pairs=1000,
-    num_random_trajs=10,
-    estop_beta=10.0,
-    n_jobs=None,
-):
-    # --------------------------------------------------
-    # 1) Trajectory pools
-    # --------------------------------------------------
-    traj_pools = generate_trajectory_pools_multi(
-        mdps=mdps,
-        n_trajs_per_state=n_trajs_per_state,
-        max_horizon=max_horizon,
-        n_jobs=n_jobs,
-    )
-
-    # --------------------------------------------------
-    # 2) Feedback: pairwise + corrections + e-stop
-    # --------------------------------------------------
-    pairwise_list, correction_list, estop_list = generate_feedback_multi(
-        traj_pools=traj_pools,
-        mdps=mdps,
-        theta_true_list=theta_true_list,
-        gamma=gamma,
-        n_pairs=n_pairs,
-        num_random_trajs=num_random_trajs,
-        estop_beta=estop_beta,
-        n_jobs=n_jobs,
-    )
-
-    return traj_pools, pairwise_list, correction_list, estop_list
-
 # ---------------------------
 # Extract constraints from feedbacks
 # ---------------------------
+def constraints_from_demo_atom_next_state(
+    demo_payload,
+    Psi_sa,
+    idx_of,
+    terminal_mask=None,
+    normalize=True,
+    tol=1e-12,
+):
+    """
+    Demo payload is either:
+      - (s, a_star) where s is a tuple state, needs idx_of
+      - (s_idx, a_star) where s_idx is already int
+
+    Returns: list[np.ndarray] constraint vectors
+    """
+    if demo_payload is None:
+        return []
+
+    s, a_star = demo_payload
+
+    # Map state to index if needed
+    if isinstance(s, (tuple, list, np.ndarray)):
+        s_idx = idx_of[tuple(s)]
+    else:
+        s_idx = int(s)
+
+    a_star = int(a_star)
+
+    Psi_sa = np.asarray(Psi_sa)
+    S, A, D = Psi_sa.shape
+
+    if not (0 <= s_idx < S) or not (0 <= a_star < A):
+        return []
+
+    if terminal_mask is not None and terminal_mask[s_idx]:
+        return []
+
+    psi_star = Psi_sa[s_idx, a_star]
+    out = []
+
+    for a in range(A):
+        if a == a_star:
+            continue
+
+        diff = psi_star - Psi_sa[s_idx, a]
+        n = np.linalg.norm(diff)
+        if n <= tol:
+            continue
+
+        out.append(diff / n if normalize else diff)
+
+    return out
+
+
 def trajectory_successor_features(
     traj,
     Psi_s,
@@ -1006,79 +658,53 @@ def constraints_from_estop_feedback(
     return constraints
 
 
-def group_atoms_by_type(atoms):
-    grouped = defaultdict(list)
-    for atom in atoms:
-        grouped[atom.atom_type].append(atom.payload)
-    return grouped
-
-
-def constraints_from_atoms_one_env(
-    atoms,
+def constraints_from_single_atom(
+    atom,
+    *,
     Psi_s,
+    Psi_sa,
     idx_of,
+    terminal_mask=None,
     gamma=0.99,
     normalize=True,
     tol=1e-12,
 ):
     """
-    Convert atoms from ONE environment into linear reward constraints.
-
-    Parameters
-    ----------
-    atoms : list[Atom]
-        Atoms belonging to a single environment
-    Psi_s : np.ndarray
-        State successor features (S, D)
-    idx_of : dict
-        State -> index mapping
+    Returns list[np.ndarray] constraints generated by THIS atom only.
     """
-    grouped = group_atoms_by_type(atoms)
-    constraints = []
-    # -----------------------
-    # Pairwise preferences
-    # -----------------------
-    if "pairwise" in grouped:
-        constraints.extend(
-            constraints_from_pairwise_preferences(
-                grouped["pairwise"],
-                Psi_s,
-                idx_of,
-                gamma=gamma,
-                normalize=normalize,
-                tol=tol,
-            )
-        )
-    # -----------------------
-    # Improvement / correction
-    # -----------------------
-    if "improvement" in grouped:
-        constraints.extend(
-            constraints_from_correction_feedback(
-                grouped["improvement"],
-                Psi_s,
-                idx_of,
-                gamma=gamma,
-                normalize=normalize,
-                tol=tol,
-            )
-        )
-    # -----------------------
-    # E-stop
-    # -----------------------
-    if "estop" in grouped:
-        constraints.extend(
-            constraints_from_estop_feedback(
-                grouped["estop"],
-                Psi_s,
-                idx_of,
-                gamma=gamma,
-                normalize=normalize,
-                tol=tol,
-            )
+    t = atom.atom_type
+
+    if t == "demo":
+        if Psi_sa is None:
+            raise ValueError("Demo atom encountered but Psi_sa was not provided.")
+        return constraints_from_demo_atom_next_state(
+            atom.payload,
+            Psi_sa=Psi_sa,
+            idx_of=idx_of,
+            terminal_mask=terminal_mask,
+            normalize=normalize,
+            tol=tol,
         )
 
-    return constraints
+    if t == "pairwise":
+        return constraints_from_pairwise_preferences(
+            [atom.payload], Psi_s, idx_of,
+            gamma=gamma, normalize=normalize, tol=tol
+        )
+
+    if t == "improvement":
+        return constraints_from_correction_feedback(
+            [atom.payload], Psi_s, idx_of,
+            gamma=gamma, normalize=normalize, tol=tol
+        )
+
+    if t == "estop":
+        return constraints_from_estop_feedback(
+            [atom.payload], Psi_s, idx_of,
+            gamma=gamma, normalize=normalize, tol=tol
+        )
+
+    raise ValueError(f"Unknown atom_type: {t}")
 
 def _constraints_from_atoms_env_per_atom_worker(args):
     """
@@ -1087,7 +713,9 @@ def _constraints_from_atoms_env_per_atom_worker(args):
     (
         atoms,
         Psi_s,
+        Psi_sa,
         idx_of,
+        terminal_mask,
         gamma,
         normalize,
         tol,
@@ -1096,31 +724,27 @@ def _constraints_from_atoms_env_per_atom_worker(args):
     env_constraints = []
 
     for atom in atoms:
-        # Generate constraints for THIS atom only
-        atom_constraints = constraints_from_atoms_one_env(
-            atoms=[atom],
+        atom_constraints = constraints_from_single_atom(
+            atom,
             Psi_s=Psi_s,
+            Psi_sa=Psi_sa,
             idx_of=idx_of,
+            terminal_mask=terminal_mask,
             gamma=gamma,
             normalize=normalize,
             tol=tol,
         )
 
-        # Normalize output: always list[np.ndarray]
+        # Always normalize to list[np.ndarray]
         if atom_constraints is None:
             atom_constraints = []
         elif isinstance(atom_constraints, np.ndarray):
             if atom_constraints.ndim == 1:
                 atom_constraints = [atom_constraints]
             elif atom_constraints.ndim == 2:
-                atom_constraints = [
-                    atom_constraints[i, :]
-                    for i in range(atom_constraints.shape[0])
-                ]
+                atom_constraints = [atom_constraints[i, :] for i in range(atom_constraints.shape[0])]
             else:
-                raise ValueError(
-                    f"Unexpected constraint array shape {atom_constraints.shape}"
-                )
+                raise ValueError(f"Unexpected constraint array shape {atom_constraints.shape}")
         else:
             atom_constraints = list(atom_constraints)
 
@@ -1128,28 +752,49 @@ def _constraints_from_atoms_env_per_atom_worker(args):
 
     return env_constraints
 
+
 def constraints_from_atoms_multi_env(
     atoms_per_env,
     Psi_s_list,
     idx_of_list,
+    *,
+    Psi_sa_list=None,
+    terminal_mask_list=None,
     gamma=0.99,
     normalize=True,
     tol=1e-12,
     n_jobs=None,
 ):
     """
-    Convert atoms into constraints for ALL environments,
-    PRESERVING atom identity.
+    Convert atoms into constraints for ALL environments, preserving atom identity.
 
-    Returns
-    -------
-    constraints_per_env : list[list[list[np.ndarray]]]
-
-        constraints_per_env[e][i] = list of constraint vectors
-        generated by atom i in environment e
+    Returns:
+      constraints_per_env[e][i] = list of constraint vectors from atom i in env e
     """
     assert len(atoms_per_env) == len(Psi_s_list) == len(idx_of_list), \
         "Length mismatch among atoms_per_env / Psi_s_list / idx_of_list"
+
+    E = len(atoms_per_env)
+
+    # Default optionals
+    if Psi_sa_list is None:
+        Psi_sa_list = [None] * E
+    else:
+        assert len(Psi_sa_list) == E, "Psi_sa_list length mismatch"
+
+    if terminal_mask_list is None:
+        terminal_mask_list = [None] * E
+    else:
+        assert len(terminal_mask_list) == E, "terminal_mask_list length mismatch"
+
+    # Early check: if ANY demo atoms exist, Psi_sa must be provided for those envs
+    for e, atoms in enumerate(atoms_per_env):
+        if any(getattr(a, "atom_type", None) == "demo" for a in atoms):
+            if Psi_sa_list[e] is None:
+                raise ValueError(
+                    f"Env {e} has demo atoms but Psi_sa_list[{e}] is None. "
+                    f"Pass Psi_sa_list to constraints_from_atoms_multi_env."
+                )
 
     if n_jobs is None:
         n_jobs = cpu_count()
@@ -1158,30 +803,27 @@ def constraints_from_atoms_multi_env(
         (
             atoms,
             Psi_s,
+            Psi_sa,
             idx_of,
+            terminal_mask,
             gamma,
             normalize,
             tol,
         )
-        for atoms, Psi_s, idx_of in zip(
-            atoms_per_env, Psi_s_list, idx_of_list
+        for atoms, Psi_s, Psi_sa, idx_of, terminal_mask in zip(
+            atoms_per_env, Psi_s_list, Psi_sa_list, idx_of_list, terminal_mask_list
         )
     ]
 
-    # Parallel over environments
     with Pool(processes=n_jobs) as pool:
-        constraints_per_env = pool.map(
-            _constraints_from_atoms_env_per_atom_worker,
-            args,
-        )
+        constraints_per_env = pool.map(_constraints_from_atoms_env_per_atom_worker, args)
 
-    # HARD invariant check (do NOT remove)
-    for e in range(len(atoms_per_env)):
+    # HARD invariant check (keep it)
+    for e in range(E):
         if len(constraints_per_env[e]) != len(atoms_per_env[e]):
             raise RuntimeError(
                 f"Env {e}: atom/constraint mismatch "
-                f"({len(atoms_per_env[e])} atoms vs "
-                f"{len(constraints_per_env[e])} constraint lists)"
+                f"({len(atoms_per_env[e])} atoms vs {len(constraints_per_env[e])} constraint lists)"
             )
 
     return constraints_per_env
