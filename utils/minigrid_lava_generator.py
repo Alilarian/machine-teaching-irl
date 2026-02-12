@@ -876,12 +876,18 @@ from minigrid.core.mission import MissionSpace
 
 FEATURE_SET = "L2.5"
 
+# W_MAP = {
+#     # [dist_goal, on_lava, adj_lava, free_deg, step]
+#     "L2.5": np.array([-1.0, -8.0, -2.0, 0.5, -0.05]) /
+#             np.linalg.norm([-1.0, -8.0, -2.0, 0.5, -0.05]),
+# }
+
+
 W_MAP = {
     # [dist_goal, on_lava, adj_lava, free_deg, step]
-    "L2.5": np.array([-1.0, -8.0, -2.0, 0.5, -0.05]) /
-            np.linalg.norm([-1.0, -8.0, -2.0, 0.5, -0.05]),
+    "L2.5": np.array([-1.0, -8.0, -2.0, -0.05]) /
+            np.linalg.norm([-1.0, -8.0, -2.0, -0.05]),
 }
-
 
 def manhattan(p, q):
     return abs(p[0] - q[0]) + abs(p[1] - q[1])
@@ -918,14 +924,14 @@ def phi_from_state(state, goal_yx, lava_mask, wall_mask, size):
     dist_goal = manhattan((y, x), (gy, gx))
     on_lava = on_lava_state(lava_mask, y, x)
     adj_lava = lava_adjacent_count(lava_mask, y, x)
-    free_deg = free_neighbor_count(wall_mask, y, x)
+    #free_deg = free_neighbor_count(wall_mask, y, x)
     step = 1.0
 
     return np.array([
         dist_goal,
         on_lava,
         adj_lava,
-        free_deg,
+        #free_deg,
         step,
     ], dtype=float)
 
