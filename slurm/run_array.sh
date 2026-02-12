@@ -27,7 +27,7 @@ export NUMEXPR_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # Paths
 # -------------------------------
 REPO_DIR=$HOME/machine-teaching-irl/mdp
-OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A1/${SLURM_JOB_ID}
+OUT_BASE=/scratch/general/nfs1/$USER/two_stage_runs/A1/${SLURM_ARRAY_JOB_ID}
 
 
 mkdir -p "$OUT_BASE"

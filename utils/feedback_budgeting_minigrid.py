@@ -226,7 +226,7 @@ def generate_random_trajectories_from_state(
     wall_mask,
     goal_yx,
     lava_mask,
-    max_horizon=30,
+    max_horizon=150,
     seed=0,
 ):
     rng = np.random.default_rng(seed)
@@ -249,8 +249,8 @@ def generate_trajectory_pool(
     wall_mask,
     goal_yx,
     lava_mask,
-    n_trajs_per_state=5,
-    max_horizon=30,
+    n_trajs_per_state=200,
+    max_horizon=150,
 ):
     
     
@@ -296,8 +296,8 @@ def _trajectory_pool_worker(args):
 
 def generate_trajectory_pools_multi(
     mdps,
-    n_trajs_per_state=5,
-    max_horizon=30,
+    n_trajs_per_state=200,
+    max_horizon=150,
     n_jobs=None,
 ):
     if n_jobs is None:
@@ -580,7 +580,7 @@ def generate_random_feedback_pipeline_multi(
         
     mdps,
     theta_true_list,
-    n_trajs_per_state=5,
+    n_trajs_per_state=200,
     max_horizon=30,
     gamma=0.99,
     n_pairs=1000,
@@ -613,8 +613,6 @@ def generate_random_feedback_pipeline_multi(
     )
 
     return traj_pools, pairwise_list, correction_list, estop_list
-
-
 
 ##############################################
 # Budgetting
@@ -796,7 +794,7 @@ def generate_candidate_atoms_for_scot_minigrid(
     pi_list,
     spec,
     enumerate_states,
-    n_trajs_per_state=5,
+    n_trajs_per_state=200,
     max_horizon=100,
 ):
     """

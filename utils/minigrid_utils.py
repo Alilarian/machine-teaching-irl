@@ -657,7 +657,6 @@ def constraints_from_estop_feedback(
 
     return constraints
 
-
 def constraints_from_single_atom(
     atom,
     *,
