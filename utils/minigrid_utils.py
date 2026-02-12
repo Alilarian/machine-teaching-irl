@@ -555,23 +555,51 @@ def constraints_from_demo_atom_next_state(
     return out
 
 
-def trajectory_successor_features(
+# def trajectory_successor_features(
+#     traj,
+#     Psi_s,
+#     idx_of,
+#     gamma=0.99,
+# ):
+#     """
+#     Compute Ψ(τ) = Σ γ^t φ(s_{t+1}) using state successor features.
+#     """
+#     psi = np.zeros(Psi_s.shape[1])
+#     g = 1.0
+
+#     for (_, _, sp) in traj:
+#         psi += g * Psi_s[idx_of[sp]]
+#         g *= gamma
+
+#     return psi
+
+def trajectory_feature_sum(
     traj,
-    Psi_s,
+    Phi,
     idx_of,
     gamma=0.99,
 ):
     """
-    Compute Ψ(τ) = Σ γ^t φ(s_{t+1}) using state successor features.
+    Compute discounted feature sum of a trajectory:
+
+        Φ(τ) = Σ γ^t φ(s_{t+1})
+
+    where φ is raw state feature (NOT successor feature).
     """
-    psi = np.zeros(Psi_s.shape[1])
+
+    D = Phi.shape[1]
+    phi_sum = np.zeros(D, dtype=float)
+
     g = 1.0
 
     for (_, _, sp) in traj:
-        psi += g * Psi_s[idx_of[sp]]
+        s_idx = idx_of[sp]
+        phi_sum += g * Phi[s_idx]
         g *= gamma
 
-    return psi
+    return phi_sum
+
+
 
 def constraints_from_pairwise_preferences(
     pairwise_prefs,

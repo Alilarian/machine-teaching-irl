@@ -202,7 +202,7 @@ def evaluate_trajectory(env, traj):
     return sum(env.compute_reward(s) for s, _ in traj)
 
 
-def generate_random_trajectory(env, *, max_horizon=25, rng: np.random.Generator):
+def generate_random_trajectory(env, *, max_horizon=150, rng: np.random.Generator):
     """
     Generate a random trajectory using uniformly random actions.
     """

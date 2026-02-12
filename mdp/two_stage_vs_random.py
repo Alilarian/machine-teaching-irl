@@ -247,7 +247,7 @@ def sample_random_atoms_global_pool(
     ]
 
     idxs = rng.choice(len(pool), size=n_to_pick, replace=False)
-    print("INDEEEEEEEXXXXXXXXX inside the sample_random_atoms_global_pool: ", idxs)
+    #print("INDEEEEEEEXXXXXXXXX inside the sample_random_atoms_global_pool: ", idxs)
     return [pool[i] for i in idxs]
 
 def _random_trial_worker(args):
@@ -411,6 +411,8 @@ def run_experiment(
     spec = GenerationSpec(
         seed=seed,
 
+        base_max_horizon=200, 
+
         demo=DemoSpec(
             enabled=("demo" in enabled),
             #enabled=False,
@@ -454,6 +456,8 @@ def run_experiment(
         f"Atoms per env: mean={np.mean(atom_counts):.1f},"
         f"total={sum(atom_counts)}"
     )
+
+
 
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         candidates_per_env,
@@ -507,7 +511,7 @@ def run_experiment(
         U_universal=U_universal,
         U_per_env_atoms=U_per_env_atoms,
         #U_per_env_q=U_per_env_q,
-        U_per_env_q=None,
+        # U_per_env_q=None,
         candidates_per_env=candidates_per_env,
         SFs=SFs,
         envs=envs,

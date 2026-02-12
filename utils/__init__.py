@@ -29,7 +29,7 @@ from .minigrid_lava_generator import *
 
 from .minigrid_utils import *
 
-from .generate_feedback import sample_random_atoms_like_scot
+#from .generate_feedback import sample_random_atoms_like_scot
 
 
 from .feedback_budgeting import GenerationSpec, DemoSpec, FeedbackSpec
