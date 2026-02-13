@@ -544,32 +544,71 @@ class MultiEnvAtomicBIRL_MiniGrid:
                 else:
                     raise ValueError(f"Unknown atom_type {t}")
 
-        return float(total_ll)
+        #return float(total_ll) # Add Gaussian prior (log p(w))
+        prior = -0.5 * np.sum((w / 0.6) ** 2)
+        return float(total_ll) + prior
 
     # ------------------------------------------------------------
     # Likelihood models
     # ------------------------------------------------------------
 
-    def _ll_demo(self, mdp: dict, Q: np.ndarray, demos):
-        """
-        Softmax demo likelihood:
-            log p(a|s) = beta*Q[s,a] - logsumexp(beta*Q[s,:])
+    # def _ll_demo(self, mdp: dict, Q: np.ndarray, demos):
+    #     """
+    #     Softmax demo likelihood:
+    #         log p(a|s) = beta*Q[s,a] - logsumexp(beta*Q[s,:])
 
-        Assumes demos are (s_idx, a_idx) or list thereof.
-        """
+    #     Assumes demos are (s_idx, a_idx) or list thereof.
+    #     """
+    #     if Q is None:
+    #         raise RuntimeError("Demo likelihood requested but Q is None. (needs_q bug)")
+
+    #     beta = self.beta_demo
+    #     terminal = mdp["terminal"]
+
+    #     log_l = 0.0
+
+    #     # demos can be a single (s,a) or list
+    #     if isinstance(demos, tuple):
+    #         demos = [demos]
+
+    #     print(demos[0])
+    #     for s, a in demos:
+    #         print(s)
+    #         print(a)
+    #         s = int(s)
+    #         a = int(a)
+
+    #         if terminal[s]:
+    #             continue
+
+    #         row = beta * Q[s]
+    #         Z = logsumexp(row)
+    #         log_l += beta * Q[s, a] - Z
+
+    #     return float(log_l)
+
+    def _ll_demo(self, mdp: dict, Q: np.ndarray, demos):
+
         if Q is None:
-            raise RuntimeError("Demo likelihood requested but Q is None. (needs_q bug)")
+            raise RuntimeError("Demo likelihood requested but Q is None.")
 
         beta = self.beta_demo
         terminal = mdp["terminal"]
+        idx_of = mdp["idx_of"]
 
         log_l = 0.0
 
-        # demos can be a single (s,a) or list
         if isinstance(demos, tuple):
             demos = [demos]
 
         for s, a in demos:
+
+            # -----------------------------------------
+            # 🔧 FIX: convert (y,x) → index if needed
+            # -----------------------------------------
+            if isinstance(s, tuple):
+                s = idx_of[s]
+
             s = int(s)
             a = int(a)
 
@@ -581,6 +620,7 @@ class MultiEnvAtomicBIRL_MiniGrid:
             log_l += beta * Q[s, a] - Z
 
         return float(log_l)
+
 
     def _ll_pairwise(self, mdp: dict, pair, w: np.ndarray):
         """
@@ -642,10 +682,10 @@ class MultiEnvAtomicBIRL_MiniGrid:
 
     def generate_proposal(self, old: np.ndarray, stdev: float, normalize: bool = True):
         prop = old + float(stdev) * np.random.randn(len(old))
-        if normalize:
-            n = np.linalg.norm(prop)
-            if n > 0:
-                prop /= n
+        #if normalize:
+        #    n = np.linalg.norm(prop)
+        #    if n > 0:
+        #        prop /= n
         return prop
 
     def initial_solution(self):

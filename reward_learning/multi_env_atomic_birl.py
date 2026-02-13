@@ -51,7 +51,7 @@ class MultiEnvAtomicBIRL:
         envs,
         atoms_flat,          # << THE ONLY SUPPORTED INPUT FORMAT
         *,
-        beta_demo=5.0,
+        beta_demo=1.0,
         beta_pairwise=1.0,
         beta_estop=1.0,
         beta_improvement=1.0,
@@ -149,8 +149,8 @@ class MultiEnvAtomicBIRL:
 
                 else:
                     raise ValueError(f"Unknown feedback type: {ft}")
-
-        return float(total)
+        prior = -0.5 * np.sum((w / 0.6) ** 2)
+        return float(total) + prior
 
     # ------------------------------------------------------------
     # Likelihood models
@@ -231,10 +231,10 @@ class MultiEnvAtomicBIRL:
 
     def generate_proposal(self, old, stdev, normalize=True):
         prop = old + stdev * np.random.randn(len(old))
-        if normalize:
-            n = np.linalg.norm(prop)
-            if n > 0:
-                prop = prop / n
+        # if normalize:
+        #     n = np.linalg.norm(prop)
+        #     if n > 0:
+        #         prop = prop / n
         return prop
 
     def initial_solution(self):

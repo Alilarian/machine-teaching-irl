@@ -597,7 +597,6 @@ def run_experiment(
     print(f"RANDOM-MDP-SCOT mean regret: {reg_rand_mdp_scot.mean():.4f}")
     print(f"RANDOM-MDP-SCOT mean coverage: {100*np.mean(rand_mdp_scot_out['coverages']):.2f}%")
 
-
     # --------------------------------------------------
     # 9. Save
     # --------------------------------------------------
@@ -698,9 +697,9 @@ def run_experiment(
 # =============================================================================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_envs", type=int, default=30)
-    parser.add_argument("--mdp_size", type=int, default=10)
-    parser.add_argument("--feature_dim", type=int, default=2)
+    parser.add_argument("--n_envs", type=int, default=3)
+    parser.add_argument("--mdp_size", type=int, default=6)
+    parser.add_argument("--feature_dim", type=int, default=4)
 
     parser.add_argument("--feedback", nargs="+",
                         default=["demo", "pairwise", "estop", "improvement"])
@@ -713,7 +712,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--samples", type=int, default=5000)
     parser.add_argument("--stepsize", type=float, default=0.1)
-    parser.add_argument("--beta", type=float, default=10.0)
+    parser.add_argument("--beta", type=float, default=1.0)
 
     parser.add_argument(
         "--alloc_method",

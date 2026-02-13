@@ -884,7 +884,7 @@ FEATURE_SET = "L2.5"
 
 
 W_MAP = {
-    # [dist_goal, on_lava, adj_lava, free_deg, step]
+    # [dist_goal, on_lava, adj_lava, step]
     "L2.5": np.array([-1.0, -8.0, -2.0, -0.05]) /
             np.linalg.norm([-1.0, -8.0, -2.0, -0.05]),
 }
