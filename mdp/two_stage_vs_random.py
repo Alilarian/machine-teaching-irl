@@ -205,8 +205,9 @@ def birl_atomic_to_Q_lists(
 
     birl.run_mcmc(samples=samples, stepsize=stepsize, adaptive=False, normalize=True)
 
-    w_map = birl.get_map_solution()
+    w_map = birl.get_map_solution()/np.linalg(birl.get_map_solution())
     w_mean = birl.get_mean_solution(burn_frac=burn_frac, skip_rate=skip_rate)
+    w_mean = w_mean/np.linalg.norm(w_mean)
 
     with ProcessPoolExecutor() as ex:
         Q_map = list(ex.map(_compute_Q_wrapper, [(e, w_map, vi_epsilon) for e in envs]))
