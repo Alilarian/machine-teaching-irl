@@ -205,7 +205,7 @@ def birl_atomic_to_Q_lists(
 
     birl.run_mcmc(samples=samples, stepsize=stepsize, adaptive=False, normalize=True)
 
-    w_map = birl.get_map_solution()/np.linalg(birl.get_map_solution())
+    w_map = birl.get_map_solution()/np.linalg.norm(birl.get_map_solution())
     w_mean = birl.get_mean_solution(burn_frac=burn_frac, skip_rate=skip_rate)
     w_mean = w_mean/np.linalg.norm(w_mean)
 
@@ -328,6 +328,97 @@ def run_random_trials(
         "constraint_counts": [r["constraint_count"] for r in results],
         "coverages": [r["coverage"] for r in results],
     }
+
+# =============================================================================
+# SAME-MDP RANDOM BASELINE
+# =============================================================================
+
+def _same_mdp_random_worker(args):
+    (
+        trial_id,
+        envs,
+        candidates_per_env,
+        used_envs,
+        n_to_pick,
+        seed,
+        birl_kwargs,
+        SFs,
+        U_universal,
+    ) = args
+
+    rng = np.random.default_rng(seed + 2000 + trial_id)
+
+    pool = [
+        (env_idx, atom)
+        for env_idx in used_envs
+        for atom in candidates_per_env[env_idx]
+    ]
+
+    k = min(n_to_pick, len(pool))
+    idxs = rng.choice(len(pool), size=k, replace=False)
+    chosen = [pool[i] for i in idxs]
+
+    n_c, cov = recover_constraints_and_coverage(
+        chosen,
+        SFs,
+        envs,
+        U_universal,
+    )
+
+    Q_map, _ = birl_atomic_to_Q_lists(
+        envs,
+        chosen,
+        **birl_kwargs,
+    )
+
+    reg = regrets_from_Q(envs, Q_map)
+
+    return {
+        "regret": reg,
+        "mdp_count": len(used_envs),
+        "constraint_count": n_c,
+        "coverage": cov,
+    }
+
+
+def run_same_mdp_random_trials(
+    *,
+    envs,
+    candidates_per_env,
+    used_envs,
+    n_to_pick,
+    seed,
+    trials,
+    birl_kwargs,
+    SFs,
+    U_universal,
+    max_workers=None,
+):
+    args = [
+        (
+            t,
+            envs,
+            candidates_per_env,
+            used_envs,
+            n_to_pick,
+            seed,
+            birl_kwargs,
+            SFs,
+            U_universal,
+        )
+        for t in range(trials)
+    ]
+
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
+        results = list(ex.map(_same_mdp_random_worker, args))
+
+    return {
+        "regrets": np.vstack([r["regret"] for r in results]),
+        "mdp_counts": [r["mdp_count"] for r in results],
+        "constraint_counts": [r["constraint_count"] for r in results],
+        "coverages": [r["coverage"] for r in results],
+    }
+
 
 # =============================================================================
 # MAIN EXPERIMENT
@@ -499,12 +590,6 @@ def run_experiment(
     for i in U_universal:
         print(i)
     
-    #print("constraints per env per atom")
-    #print(U_per_env_atoms)
-    #for i in U_universal:
-    #    print(i)
-    
-
     # --------------------------------------------------
     # 6. TWO-STAGE SCOT
     # --------------------------------------------------
@@ -599,36 +684,109 @@ def run_experiment(
     print(f"RANDOM-MDP-SCOT mean coverage: {100*np.mean(rand_mdp_scot_out['coverages']):.2f}%")
 
     # --------------------------------------------------
+    # 8.6 Regret — SAME-MDP RANDOM
+    # --------------------------------------------------
+    same_mdp_rand_out = run_same_mdp_random_trials(
+        envs=envs,
+        candidates_per_env=candidates_per_env,
+        used_envs=used_envs,
+        n_to_pick=len(chosen_two_stage),
+        seed=args.seed + 9999,
+        trials=random_trials,
+        birl_kwargs=birl_kwargs,
+        SFs=SFs,
+        U_universal=U_universal,
+    )
+
+    reg_same_mdp_rand = same_mdp_rand_out["regrets"]
+
+    print(f"SAME-MDP-RANDOM mean regret: {reg_same_mdp_rand.mean():.4f}")
+    print(f"SAME-MDP-RANDOM mean coverage: {100*np.mean(same_mdp_rand_out['coverages']):.2f}%")
+
+
+    # --------------------------------------------------
     # 9. Save
     # --------------------------------------------------
     results = {
-        # --------------------
-        # Core results
-        # --------------------
-        "two_stage_regret": reg_ts.tolist(),
-        "random_regret": reg_rand.tolist(),
-        "two_stage_mean": float(reg_ts.mean()),
-        "random_mean": float(reg_rand.mean()),
+        # ============================================================
+        # Core Regret (per method)
+        # ============================================================
+        "methods": {
 
-        # --------------------
-        # SCOT statistics
-        # --------------------
-        "num_atoms_selected": len(chosen_two_stage),
-        "num_envs_used": num_used_envs,
-        "used_envs": used_envs,
+            "two_stage": {
+                "regret": reg_ts.tolist(),
+                "mean_regret": float(reg_ts.mean()),
+                "selection_stats": {
+                    "num_atoms_selected": len(chosen_two_stage),
+                    "num_envs_used": num_used_envs,
+                    "used_envs": used_envs,
+                },
+                "constraint_stats": {
+                    "unique_constraints": ts_n_constraints,
+                    "coverage": ts_coverage,
+                },
+            },
 
-        # --------------------
-        # Constraint statistics
-        # --------------------
-        "U_q_raw": len(U_q),
-        "U_q_unique": len(U_q_unique),
-        "U_atoms_raw": 0 if U_atoms is None else len(U_atoms),
-        "U_union_unique": len(U_universal),
-        "atom_implied_unique": len(U_universal) - len(U_q_unique),
+            "random": {
+                "regret": reg_rand.tolist(),
+                "mean_regret": float(reg_rand.mean()),
+                "selection_stats": {
+                    "mdp_counts": rand_out["mdp_counts"],
+                    "mean_mdp_count": float(np.mean(rand_out["mdp_counts"])),
+                },
+                "constraint_stats": {
+                    "constraint_counts": rand_out["constraint_counts"],
+                    "coverages": rand_out["coverages"],
+                    "mean_unique_constraints": float(np.mean(rand_out["constraint_counts"])),
+                    "mean_coverage": float(np.mean(rand_out["coverages"])),
+                },
+            },
 
-        # --------------------
-        # Experiment config (reproducibility)
-        # --------------------
+            "random_mdp_scot": {
+                "regret": reg_rand_mdp_scot.tolist(),
+                "mean_regret": float(reg_rand_mdp_scot.mean()),
+                "selection_stats": {
+                    "mdp_counts": rand_mdp_scot_out["mdp_counts"],
+                    "mean_mdp_count": float(np.mean(rand_mdp_scot_out["mdp_counts"])),
+                },
+                "constraint_stats": {
+                    "constraint_counts": rand_mdp_scot_out["constraint_counts"],
+                    "coverages": rand_mdp_scot_out["coverages"],
+                    "mean_unique_constraints": float(np.mean(rand_mdp_scot_out["constraint_counts"])),
+                    "mean_coverage": float(np.mean(rand_mdp_scot_out["coverages"])),
+                },
+            },
+
+            "same_mdp_random": {
+                "regret": reg_same_mdp_rand.tolist(),
+                "mean_regret": float(reg_same_mdp_rand.mean()),
+                "selection_stats": {
+                    "mdp_counts": same_mdp_rand_out["mdp_counts"],
+                    "mean_mdp_count": float(np.mean(same_mdp_rand_out["mdp_counts"])),
+                },
+                "constraint_stats": {
+                    "constraint_counts": same_mdp_rand_out["constraint_counts"],
+                    "coverages": same_mdp_rand_out["coverages"],
+                    "mean_unique_constraints": float(np.mean(same_mdp_rand_out["constraint_counts"])),
+                    "mean_coverage": float(np.mean(same_mdp_rand_out["coverages"])),
+                },
+            },
+        },
+
+        # ============================================================
+        # Universal Constraint Diagnostics
+        # ============================================================
+        "universal_constraints": {
+            "U_q_raw": len(U_q),
+            "U_q_unique": len(U_q_unique),
+            "U_atoms_raw": 0 if U_atoms is None else len(U_atoms),
+            "U_union_unique": len(U_universal),
+            "atom_implied_unique": len(U_universal) - len(U_q_unique),
+        },
+
+        # ============================================================
+        # Experiment Config
+        # ============================================================
         "config": {
             "seed": seed,
             "n_envs": n_envs,
@@ -644,33 +802,6 @@ def run_experiment(
                 "stepsize": birl_kwargs["stepsize"],
             },
         },
-        # --------------------
-        # Constraint recovery
-        # --------------------
-        "two_stage_constraints": {
-            "unique_constraints": ts_n_constraints,
-            "coverage": ts_coverage,
-        },
-
-        "random_constraints": {
-            "mdp_counts": rand_out["mdp_counts"],
-            "constraint_counts": rand_out["constraint_counts"],
-            "coverages": rand_out["coverages"],
-            "mean_mdp_count": float(np.mean(rand_out["mdp_counts"])),
-            "mean_unique_constraints": float(np.mean(rand_out["constraint_counts"])),
-            "mean_coverage": float(np.mean(rand_out["coverages"])),
-        },
-
-    "random_mdp_scot": {
-            "regret": reg_rand_mdp_scot.tolist(),
-            "mean_regret": float(reg_rand_mdp_scot.mean()),
-            "mdp_counts": rand_mdp_scot_out["mdp_counts"],
-            "constraint_counts": rand_mdp_scot_out["constraint_counts"],
-            "coverages": rand_mdp_scot_out["coverages"],
-            "mean_unique_constraints": float(np.mean(rand_mdp_scot_out["constraint_counts"])),
-            "mean_coverage": float(np.mean(rand_mdp_scot_out["coverages"])),
-},
-
     }
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")

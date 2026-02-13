@@ -214,6 +214,38 @@ def random_mdp_scot_trial(args_tuple):
 
     return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
 
+def same_mdp_random_atom_trial(args_tuple):
+    (
+        trial_id,
+        mdps,
+        atoms_per_env,
+        selected_envs,     # from two_stage
+        k_atoms,
+        args,
+        enabled_feedback,
+    ) = args_tuple
+
+    rng = np.random.default_rng(args.seed + trial_id)
+
+    # Build pool ONLY from SCOT-selected MDPs
+    pool = [
+        (env_idx, atom)
+        for env_idx in selected_envs
+        for atom in atoms_per_env[env_idx]
+    ]
+
+    # If pool smaller than k_atoms, clip safely
+    k = min(k_atoms, len(pool))
+
+    idxs = rng.choice(len(pool), size=k, replace=False)
+    chosen = [pool[i] for i in idxs]
+
+    Q_list, _ = birl_atomic_to_Q_and_wmap(
+        mdps, chosen, args, enabled_feedback
+    )
+
+    return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
+
 
 # =============================================================================
 # MAIN PIPELINE
@@ -407,11 +439,29 @@ def main(args):
     reg_rand = np.vstack(reg_rand)
     reg_rand_mdp = np.vstack(reg_rand_mdp)
 
+    with ProcessPoolExecutor() as ex:
+        reg_same_mdp_rand = list(ex.map(
+            same_mdp_random_atom_trial,
+            [
+                (
+                    t,
+                    mdps,
+                    atoms_per_env,
+                    used_envs,   # SCOT-selected MDPs
+                    k_atoms,
+                    args,
+                    enabled_feedback,
+                )
+                for t in range(args.random_trials)
+            ]
+        ))
+
+    reg_same_mdp_rand = np.vstack(reg_same_mdp_rand)
+
+
     # -------------------------------------------------------------------------
     # 8) Save Results
     # -------------------------------------------------------------------------
-    
-    
     
     # Two-stage coverage
     # ----------------------------
@@ -483,53 +533,132 @@ def main(args):
 
 
 
+    # ----------------------------
+    # Same-MDP Random-Atom coverage per trial
+    # ----------------------------
+    same_mdp_rand_constraint_counts = []
+    same_mdp_rand_coverages = []
 
+    for t in range(args.random_trials):
+        rng = np.random.default_rng(args.seed + t)
 
+        pool = [
+            (env_idx, atom)
+            for env_idx in used_envs
+            for atom in atoms_per_env[env_idx]
+        ]
 
+        k = min(len(out["chosen"]), len(pool))
+        idxs = rng.choice(len(pool), size=k, replace=False)
+        chosen = [pool[i] for i in idxs]
 
+        cov_same = coverage_report_key_based(
+            U_universal=U_universal,
+            U_per_env_envlevel=U_atoms_envlevel,
+            selected_envs=used_envs,
+        )
 
+        same_mdp_rand_constraint_counts.append(cov_same["covered_by_selected"])
+        same_mdp_rand_coverages.append(cov_same["coverage_frac_selected"])
 
-
-
-
-    results_universal_stats = {
-    "U_demo_unique": int(len(U_demo_unique)),
-    "U_atoms_unique": int(len(U_atoms_unique)),
-    "U_universal": int(len(U_universal)),
-    "atom_implied_unique": int(len(U_universal) - len(U_demo_unique)),
-}
-
-    
     results = {
-        # --------------------
-        # Core results
-        # --------------------
-        "two_stage_regret": reg_scot.tolist(),
-        "random_regret": reg_rand.tolist(),
-        "random_mdp_scot_regret": reg_rand_mdp.tolist(),
+        # ============================================================
+        # Core Regret (per method)
+        # ============================================================
+        "methods": {
 
-        "two_stage_mean": float(np.mean(reg_scot)),
-        "random_mean": float(np.mean(reg_rand)),
-        "random_mdp_scot_mean": float(np.mean(reg_rand_mdp)),
+            # --------------------------------------------------------
+            # Two-Stage SCOT
+            # --------------------------------------------------------
+            "two_stage": {
+                "regret": reg_scot.tolist(),
+                "mean_regret": float(np.mean(reg_scot)),
 
-        # --------------------
-        # SCOT statistics
-        # --------------------
-        "num_atoms_selected": int(len(out["chosen"])),
-        "num_envs_used": int(len(out["selected_mdps"])),
-        "used_envs": list(out["selected_mdps"]),
+                "selection_stats": {
+                    "num_atoms_selected": int(len(out["chosen"])),
+                    "num_envs_used": int(len(out["selected_mdps"])),
+                    "used_envs": list(out["selected_mdps"]),
+                },
 
-        # --------------------
-        # Constraint statistics (Universal diagnostics)
-        # --------------------
-        "U_demo_unique": int(len(U_demo_unique)),
-        "U_atoms_unique": int(len(U_atoms_unique)),
-        "U_union_unique": int(len(U_universal)),
-        "atom_implied_unique": int(len(U_universal) - len(U_demo_unique)),
+                "constraint_stats": {
+                    "unique_constraints": int(ts_n_constraints),
+                    "coverage": float(ts_coverage),
+                },
+            },
 
-        # --------------------
-        # Experiment config (reproducibility)
-        # --------------------
+            # --------------------------------------------------------
+            # Same-MDP Random
+            # --------------------------------------------------------
+            "same_mdp_random": {
+                "regret": reg_same_mdp_rand.tolist(),
+                "mean_regret": float(np.mean(reg_same_mdp_rand)),
+
+                "selection_stats": {
+                    "mdp_counts": None,  # not applicable
+                },
+
+                "constraint_stats": {
+                    "constraint_counts": same_mdp_rand_constraint_counts,
+                    "coverages": same_mdp_rand_coverages,
+                    "mean_unique_constraints": float(np.mean(same_mdp_rand_constraint_counts)),
+                    "mean_coverage": float(np.mean(same_mdp_rand_coverages)),
+                },
+            },
+
+            # --------------------------------------------------------
+            # Random (global random atoms)
+            # --------------------------------------------------------
+            "random": {
+                "regret": reg_rand.tolist(),
+                "mean_regret": float(np.mean(reg_rand)),
+
+                "selection_stats": {
+                    "mdp_counts": rand_mdp_counts,
+                    "mean_mdp_count": float(np.mean(rand_mdp_counts)),
+                },
+
+                "constraint_stats": {
+                    "constraint_counts": rand_constraint_counts,
+                    "coverages": rand_coverages,
+                    "mean_unique_constraints": float(np.mean(rand_constraint_counts)),
+                    "mean_coverage": float(np.mean(rand_coverages)),
+                },
+            },
+
+            # --------------------------------------------------------
+            # Random MDP + SCOT within MDP
+            # --------------------------------------------------------
+            "random_mdp_scot": {
+                "regret": reg_rand_mdp.tolist(),
+                "mean_regret": float(np.mean(reg_rand_mdp)),
+
+                "selection_stats": {
+                    "mdp_counts": rand_mdp_counts,
+                    "mean_mdp_count": float(np.mean(rand_mdp_counts)),
+                },
+
+                "constraint_stats": {
+                    "constraint_counts": rand_mdp_constraint_counts,
+                    "coverages": rand_mdp_coverages,
+                    "mean_unique_constraints": float(np.mean(rand_mdp_constraint_counts)),
+                    "mean_coverage": float(np.mean(rand_mdp_coverages)),
+                },
+            },
+        },
+
+        # ============================================================
+        # Universal Constraint Diagnostics
+        # ============================================================
+        "universal_constraints": {
+            "U_demo_unique": int(len(U_demo_unique)),
+            "U_atoms_unique": int(len(U_atoms_unique)),
+            "U_union_unique": int(len(U_universal)),
+            "atom_implied_unique": int(len(U_universal) - len(U_demo_unique)),
+        },
+
+        # ============================================================
+        # Experiment Config (Reproducibility)
+        # ============================================================
         "config": {
             "seed": args.seed,
             "n_envs": args.n_envs,
@@ -547,34 +676,8 @@ def main(args):
                 "stepsize": args.stepsize,
             },
         },
-
-        # --------------------
-        # Constraint recovery
-        # --------------------
-        "two_stage_constraints": {
-            "unique_constraints": int(ts_n_constraints),
-            "coverage": float(ts_coverage),
-        },
-
-        "random_constraints": {
-            "mdp_counts": rand_mdp_counts,
-            "constraint_counts": rand_constraint_counts,
-            "coverages": rand_coverages,
-            "mean_mdp_count": float(np.mean(rand_mdp_counts)),
-            "mean_unique_constraints": float(np.mean(rand_constraint_counts)),
-            "mean_coverage": float(np.mean(rand_coverages)),
-        },
-
-        "random_mdp_scot": {
-            "regret": reg_rand_mdp.tolist(),
-            "mean_regret": float(np.mean(reg_rand_mdp)),
-            "mdp_counts": rand_mdp_counts,
-            "constraint_counts": rand_mdp_constraint_counts,
-            "coverages": rand_mdp_coverages,
-            "mean_unique_constraints": float(np.mean(rand_mdp_constraint_counts)),
-            "mean_coverage": float(np.mean(rand_mdp_coverages)),
-        },
     }
+
 
 
     os.makedirs(args.result_dir, exist_ok=True)
