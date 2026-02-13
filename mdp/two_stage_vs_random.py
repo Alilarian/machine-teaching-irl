@@ -203,7 +203,7 @@ def birl_atomic_to_Q_lists(
         
     )
 
-    birl.run_mcmc(samples=samples, stepsize=stepsize, adaptive=False, normalize=True)
+    birl.run_mcmc(samples=samples, stepsize=stepsize, adaptive=False, normalize=False)
 
     w_map = birl.get_map_solution()/np.linalg.norm(birl.get_map_solution())
     w_mean = birl.get_mean_solution(burn_frac=burn_frac, skip_rate=skip_rate)
@@ -491,13 +491,13 @@ def run_experiment(
     print("GENERATING CONSTRAINTS")
 
     # Q-based constraints
-    U_per_env_q, U_q = derive_constraints_from_q_family(
-        SFs,
-        Q_list,
-        envs,
-        skip_terminals=True,
-        normalize=True,
-    )
+    # U_per_env_q, U_q = derive_constraints_from_q_family(
+    #     SFs,
+    #     Q_list,
+    #     envs,
+    #     skip_terminals=True,
+    #     normalize=True,
+    # )
 
     enabled = set(feedback)
     spec = GenerationSpec(
@@ -550,7 +550,6 @@ def run_experiment(
     )
 
 
-
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         candidates_per_env,
         SFs,
@@ -558,30 +557,33 @@ def run_experiment(
     )
 
     # --- Deduplicate Q-only constraints
-    U_q_unique = remove_redundant_constraints(U_q)
+    #U_q_unique = remove_redundant_constraints(U_q)
 
-    print("U_q_unique: ")
-    for i in U_q_unique:
-        print(i)
+    # print("U_q_unique: ")
+    # for i in U_q_unique:
+    #     print(i)
     
     print("U_atoms: ")
     for i in U_atoms:
         print(i)
     
-    # --- Deduplicate Q + Atom constraints
-    if U_atoms is not None and len(U_atoms) > 0:
-        U_union_unique = remove_redundant_constraints(
-            np.vstack([U_q_unique, U_atoms])
-        )
-    else:
-         U_union_unique = U_q_unique
+    # # --- Deduplicate Q + Atom constraints
+    # if U_atoms is not None and len(U_atoms) > 0:
+    #     U_union_unique = remove_redundant_constraints(
+    #         np.vstack([U_q_unique, U_atoms])
+    #     )
+    
+    U_union_unique = remove_redundant_constraints(U_atoms)
+
+    #else:
+    #     U_union_unique = U_q_unique
 
     # --- Log diagnostic info
-    print(f"|U_q| raw            = {len(U_q)}")
-    print(f"|U_q| unique         = {len(U_q_unique)}")
+    #print(f"|U_q| raw            = {len(U_q)}")
+    #print(f"|U_q| unique         = {len(U_q_unique)}")
     print(f"|U_atoms| raw        = {0 if U_atoms is None else len(U_atoms)}")
     print(f"|U_q ∪ U_atoms| uniq = {len(U_union_unique)}")
-    print(f"Atom-implied uniques = {len(U_union_unique) - len(U_q_unique)}")
+    #print(f"Atom-implied uniques = {len(U_union_unique) - len(U_q_unique)}")
 
     # --- Use union as final universal set
     U_universal = U_union_unique
@@ -777,11 +779,11 @@ def run_experiment(
         # Universal Constraint Diagnostics
         # ============================================================
         "universal_constraints": {
-            "U_q_raw": len(U_q),
-            "U_q_unique": len(U_q_unique),
+            #"U_q_raw": len(U_q),
+            #"U_q_unique": len(U_q_unique),
             "U_atoms_raw": 0 if U_atoms is None else len(U_atoms),
             "U_union_unique": len(U_universal),
-            "atom_implied_unique": len(U_universal) - len(U_q_unique),
+            #"atom_implied_unique": len(U_universal) - len(U_q_unique),
         },
 
         # ============================================================

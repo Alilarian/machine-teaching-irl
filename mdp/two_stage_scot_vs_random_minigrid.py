@@ -289,22 +289,22 @@ def main(args):
     # -------------------------------------------------------------------------
     # 3) Oracle Demo Constraints
     # -------------------------------------------------------------------------
-    demos_list = generate_demos_from_policies_multi(
-        mdps=mdps,
-        pi_list=pi_list,
-        n_jobs=args.n_jobs,
-    )
+    # demos_list = generate_demos_from_policies_multi(
+    #     mdps=mdps,
+    #     pi_list=pi_list,
+    #     n_jobs=args.n_jobs,
+    # )
 
-    U_demo_per_env = constraints_from_demos_next_state_multi(
-        demos_list=demos_list,
-        Psi_sa_list=Psi_sa_list,
-        terminal_mask_list=[mdp["terminal"] for mdp in mdps],
-        normalize=True,
-        n_jobs=args.n_jobs,
-    )
+    # U_demo_per_env = constraints_from_demos_next_state_multi(
+    #     demos_list=demos_list,
+    #     Psi_sa_list=Psi_sa_list,
+    #     terminal_mask_list=[mdp["terminal"] for mdp in mdps],
+    #     normalize=True,
+    #     n_jobs=args.n_jobs,
+    # )
 
-    U_demo = np.vstack([c for env in U_demo_per_env for c in env])
-    U_demo_unique = remove_redundant_constraints(U_demo)
+    # U_demo = np.vstack([c for env in U_demo_per_env for c in env])
+    # U_demo_unique = remove_redundant_constraints(U_demo)
 
     # -------------------------------------------------------------------------
     # 4) Feedback Atom Generation
@@ -364,9 +364,11 @@ def main(args):
     U_atoms_flat = [c for env in U_atoms_per_env for atom_cs in env for c in atom_cs]
     U_atoms_unique = remove_redundant_constraints(np.vstack(U_atoms_flat))
 
-    U_universal = remove_redundant_constraints(
-        np.vstack([U_demo_unique, U_atoms_unique])
-    )
+    # U_universal = remove_redundant_constraints(
+    #     np.vstack([U_demo_unique, U_atoms_unique])
+    # )
+    U_universal = remove_redundant_constraints(U_atoms_unique)
+
 
     # -------------------------------------------------------------------------
     # 5) Two-Stage SCOT
@@ -650,10 +652,10 @@ def main(args):
         # Universal Constraint Diagnostics
         # ============================================================
         "universal_constraints": {
-            "U_demo_unique": int(len(U_demo_unique)),
+            #"U_demo_unique": int(len(U_demo_unique)),
             "U_atoms_unique": int(len(U_atoms_unique)),
             "U_union_unique": int(len(U_universal)),
-            "atom_implied_unique": int(len(U_universal) - len(U_demo_unique)),
+            #"atom_implied_unique": int(len(U_universal) - len(U_demo_unique)),
         },
 
         # ============================================================
