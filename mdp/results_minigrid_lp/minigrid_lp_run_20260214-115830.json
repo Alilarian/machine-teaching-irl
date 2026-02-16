@@ -1,0 +1,132 @@
+{
+  "methods": {
+    "two_stage": {
+      "regret": [
+        0.0,
+        0.0
+      ],
+      "mean_regret": 0.0,
+      "selection_stats": {
+        "num_atoms_selected": 8,
+        "num_envs_used": 2,
+        "used_envs": [
+          0,
+          1
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 8,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "regret": [
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.08582529111502324
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.003551649971419213
+        ],
+        [
+          0.034724783544386795,
+          0.08582529111502324
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ],
+        [
+          0.034724783544386795,
+          0.18839218674418512
+        ]
+      ],
+      "mean_regret": 0.09205976874273146,
+      "selection_stats": {
+        "mdp_counts": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "mean_mdp_count": 2.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "coverages": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "mean_unique_constraints": 8.0,
+        "mean_coverage": 1.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_atoms_unique": 8,
+    "U_union_unique": 8
+  },
+  "config": {
+    "seed": 125,
+    "n_envs": 2,
+    "grid_size": 6,
+    "gamma": 0.99,
+    "feedback": [
+      "pairwise"
+    ],
+    "state_fraction": 1.0,
+    "total_budget": 1000,
+    "random_trials": 10,
+    "alloc_method": "uniform",
+    "alloc_alpha": null,
+    "lp": {
+      "epsilon": 1e-06
+    }
+  }
+}

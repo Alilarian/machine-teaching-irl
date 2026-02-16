@@ -64,7 +64,7 @@ def lp_atomic_to_Q_lists(
     envs,
     atoms_flat,          # list of (env_idx, atom)
     SFs,                 # successor features — required for constraint derivation
-    epsilon=1e-5,        # minimum margin
+    epsilon=1e-2,        # minimum margin
     vi_epsilon=1e-6,
 ):
     # Group atoms back per environment (needed by derive_constraints_from_atoms)
@@ -221,6 +221,7 @@ def run_random_trials(
 # =============================================================================
 # MAIN EXPERIMENT
 # =============================================================================
+
 def run_experiment(
     *,
     n_envs=30,
