@@ -197,10 +197,29 @@ def allocate_budgets(
 # 3. Trajectory utilities (ALL randomness uses rng)
 # ============================================================
 
-def evaluate_trajectory(env, traj):
-    """Compute total reward of a trajectory."""
-    return sum(env.compute_reward(s) for s, _ in traj)
+# def evaluate_trajectory(env, traj):
+#     """Compute total reward of a trajectory."""
+#     return sum(env.compute_reward(s) for s, _ in traj)
 
+def evaluate_trajectory(env, traj, gamma=0.99):
+    """
+    Compute the **discounted** total reward of a trajectory.
+    
+    Args:
+        env: The environment (must have env.gamma or pass gamma explicitly)
+        traj: List of (state, action) tuples, possibly ending with (terminal_state, None)
+        gamma: Discount factor (default 0.99)
+    
+    Returns:
+        float: Discounted sum of rewards
+    """
+    total = 0.0
+    for t, (s, a) in enumerate(traj):
+        if a is None:  # terminal state marker — usually no reward, but check
+            break
+        r = env.compute_reward(s)          # reward after taking action in s
+        total += (gamma ** t) * r
+    return total
 
 def generate_random_trajectory(env, *, max_horizon=150, rng: np.random.Generator):
     """

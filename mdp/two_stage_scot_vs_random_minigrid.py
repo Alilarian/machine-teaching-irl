@@ -47,7 +47,6 @@ from reward_learning.multi_env_atomic_birl_minigrid import (
     MultiEnvAtomicBIRL_MiniGrid,
 )
 
-
 def coverage_report_key_based(
     U_universal,
     U_per_env_envlevel,
@@ -90,12 +89,9 @@ def coverage_report_key_based(
         "coverage_frac_all_envs": len(cov_all) / max(len(universe), 1),
     }
 
-
-
 # =============================================================================
 # Utility Functions
 # =============================================================================
-
 def regrets_from_Q(mdps, Q_list, theta_true):
     pi_list = [np.argmax(Q, axis=1) for Q in Q_list]
     reg = expected_value_difference_next_state_multi(
@@ -107,7 +103,6 @@ def regrets_from_Q(mdps, Q_list, theta_true):
     )
     return np.asarray(reg, dtype=float)
 
-
 def scot_output_to_atoms_flat(out):
     atoms_flat = []
     for item in out["chosen"]:
@@ -118,7 +113,6 @@ def scot_output_to_atoms_flat(out):
         else:
             raise TypeError("Unknown atom format")
     return atoms_flat
-
 
 def birl_atomic_to_Q_and_wmap(mdps, atoms_flat, args, enabled_feedback):
     birl = MultiEnvAtomicBIRL_MiniGrid(
@@ -150,11 +144,9 @@ def birl_atomic_to_Q_and_wmap(mdps, atoms_flat, args, enabled_feedback):
 
     return Q_list, w_map
 
-
 # =============================================================================
 # Baselines
 # =============================================================================
-
 def random_atom_trial(args_tuple):
     trial_id, mdps, atoms_per_env, k_atoms, args, enabled_feedback = args_tuple
     rng = np.random.default_rng(args.seed + trial_id)
@@ -173,7 +165,6 @@ def random_atom_trial(args_tuple):
     )
 
     return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
-
 
 def random_mdp_scot_trial(args_tuple):
     (
@@ -245,7 +236,6 @@ def same_mdp_random_atom_trial(args_tuple):
     )
 
     return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
-
 
 # =============================================================================
 # MAIN PIPELINE

@@ -120,121 +120,121 @@ def constraints_from_demo(traj, mu_sa, env=None, normalize=True, tol=1e-12):
 # 4. Pairwise, E-stop, Improvement Constraints
 # ============================================================
 
-def constraints_from_pairwise(atom_data, env):
-    preferred, other = atom_data
-
-    # extract state indices only
-    pref_states = [s for s, _ in preferred]
-    other_states = [s for s, _ in other]
-
-    preferred_feats = env.state_features[pref_states].sum(axis=0)
-    other_feats = env.state_features[other_states].sum(axis=0)
-
-    diff = preferred_feats - other_feats
-    norm = np.linalg.norm(diff)
-
-    if norm == 0:
-        return []
-
-    return [diff / norm]
-
-def constraints_from_estop(atom_data, env):
-    traj, t_stop = atom_data
-
-    states_full = [s for s, _ in traj]
-    states_partial = states_full[: t_stop + 1]
-
-    feats_up_to_t = env.state_features[states_partial].sum(axis=0)
-    full_feats = env.state_features[states_full].sum(axis=0)
-
-    diff = feats_up_to_t - full_feats
-    norm = np.linalg.norm(diff)
-
-    if norm == 0.0:
-        return []
-
-    return [diff / norm]
-
-
-def constraints_from_improvement(atom_data, env):
-    improved, original = atom_data
-
-    imp_states = [s for s, _ in improved]
-    org_states = [s for s, _ in original]
-
-    imp_feats = env.state_features[imp_states].sum(axis=0)
-    org_feats = env.state_features[org_states].sum(axis=0)
-
-    diff = imp_feats - org_feats
-    norm = np.linalg.norm(diff)
-
-    if norm == 0.0:
-        #return [np.zeros_like(diff)]
-        return []
-
-    return [diff / norm]
-
-# def constraints_from_pairwise(atom_data, env, gamma=1):
+# def constraints_from_pairwise(atom_data, env):
 #     preferred, other = atom_data
-    
+
+#     # extract state indices only
 #     pref_states = [s for s, _ in preferred]
 #     other_states = [s for s, _ in other]
-    
-#     # lengths may differ → we usually discount from the beginning of each traj
-#     n_pref = len(pref_states)
-#     n_other = len(other_states)
-    
-#     discounts_pref = np.power(gamma, np.arange(n_pref))
-#     discounts_other = np.power(gamma, np.arange(n_other))
-    
-#     preferred_feats = (env.state_features[pref_states] * discounts_pref[:, None]).sum(axis=0)
-#     other_feats     = (env.state_features[other_states] * discounts_other[:, None]).sum(axis=0)
-    
+
+#     preferred_feats = env.state_features[pref_states].sum(axis=0)
+#     other_feats = env.state_features[other_states].sum(axis=0)
+
 #     diff = preferred_feats - other_feats
 #     norm = np.linalg.norm(diff)
-    
-#     #if norm < 1e-9:           # slightly safer threshold
-#     #    return []
-#     return [diff / norm]       # ← or [diff] if you follow the "no unit norm" advice
 
-# def constraints_from_estop(atom_data, env, gamma=1):
-#     traj, t_stop = atom_data
-#     states_full = [s for s, _ in traj]
-    
-#     n = len(states_full)
-#     discounts = np.power(gamma, np.arange(n))
-    
-#     feats_weighted = env.state_features[states_full] * discounts[:, None]
-    
-#     sum_up_to_t   = feats_weighted[:t_stop+1].sum(axis=0)
-#     sum_full      = feats_weighted.sum(axis=0)
-    
-#     diff = sum_up_to_t - sum_full
-#     norm = np.linalg.norm(diff)
-#     #if norm < 1e-9:
-#     #    return []
+#     if norm == 0:
+#         return []
+
 #     return [diff / norm]
 
-# def constraints_from_improvement(atom_data, env, gamma=1):
+# def constraints_from_estop(atom_data, env):
+#     traj, t_stop = atom_data
+
+#     states_full = [s for s, _ in traj]
+#     states_partial = states_full[: t_stop + 1]
+
+#     feats_up_to_t = env.state_features[states_partial].sum(axis=0)
+#     full_feats = env.state_features[states_full].sum(axis=0)
+
+#     diff = feats_up_to_t - full_feats
+#     norm = np.linalg.norm(diff)
+
+#     if norm == 0.0:
+#         return []
+
+#     return [diff / norm]
+
+
+# def constraints_from_improvement(atom_data, env):
 #     improved, original = atom_data
-    
+
 #     imp_states = [s for s, _ in improved]
 #     org_states = [s for s, _ in original]
-    
-#     n_imp = len(imp_states)
-#     n_org = len(org_states)
-    
-#     disc_imp = np.power(gamma, np.arange(n_imp))
-#     disc_org = np.power(gamma, np.arange(n_org))
-    
-#     imp_feats = (env.state_features[imp_states] * disc_imp[:, None]).sum(axis=0)
-#     org_feats = (env.state_features[org_states] * disc_org[:, None]).sum(axis=0)
-    
+
+#     imp_feats = env.state_features[imp_states].sum(axis=0)
+#     org_feats = env.state_features[org_states].sum(axis=0)
+
 #     diff = imp_feats - org_feats
 #     norm = np.linalg.norm(diff)
-#     #if norm < 1e-9:
-#     #    return []
+
+#     if norm == 0.0:
+#         #return [np.zeros_like(diff)]
+#         return []
+
 #     return [diff / norm]
+
+def constraints_from_pairwise(atom_data, env, gamma=0.99):
+    preferred, other = atom_data
+    
+    pref_states = [s for s, _ in preferred]
+    other_states = [s for s, _ in other]
+    
+    # lengths may differ → we usually discount from the beginning of each traj
+    n_pref = len(pref_states)
+    n_other = len(other_states)
+    
+    discounts_pref = np.power(gamma, np.arange(n_pref))
+    discounts_other = np.power(gamma, np.arange(n_other))
+    
+    preferred_feats = (env.state_features[pref_states] * discounts_pref[:, None]).sum(axis=0)
+    other_feats     = (env.state_features[other_states] * discounts_other[:, None]).sum(axis=0)
+    
+    diff = preferred_feats - other_feats
+    norm = np.linalg.norm(diff)
+    
+    if norm < 1e-9:           # slightly safer threshold
+        return []
+    return [diff / norm]       # ← or [diff] if you follow the "no unit norm" advice
+
+def constraints_from_estop(atom_data, env, gamma=0.99):
+    traj, t_stop = atom_data
+    states_full = [s for s, _ in traj]
+    
+    n = len(states_full)
+    discounts = np.power(gamma, np.arange(n))
+    
+    feats_weighted = env.state_features[states_full] * discounts[:, None]
+    
+    sum_up_to_t   = feats_weighted[:t_stop+1].sum(axis=0)
+    sum_full      = feats_weighted.sum(axis=0)
+    
+    diff = sum_up_to_t - sum_full
+    norm = np.linalg.norm(diff)
+    if norm < 1e-9:
+        return []
+    return [diff / norm]
+
+def constraints_from_improvement(atom_data, env, gamma=0.99):
+    improved, original = atom_data
+    
+    imp_states = [s for s, _ in improved]
+    org_states = [s for s, _ in original]
+    
+    n_imp = len(imp_states)
+    n_org = len(org_states)
+    
+    disc_imp = np.power(gamma, np.arange(n_imp))
+    disc_org = np.power(gamma, np.arange(n_org))
+    
+    imp_feats = (env.state_features[imp_states] * disc_imp[:, None]).sum(axis=0)
+    org_feats = (env.state_features[org_states] * disc_org[:, None]).sum(axis=0)
+    
+    diff = imp_feats - org_feats
+    norm = np.linalg.norm(diff)
+    if norm < 1e-9:
+        return []
+    return [diff / norm]
 
 
 

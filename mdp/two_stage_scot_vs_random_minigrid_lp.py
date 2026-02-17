@@ -545,7 +545,7 @@ if __name__ == "__main__":
     parser.add_argument("--random_trials", type=int, default=10)
     parser.add_argument("--result_dir", type=str, default="results_minigrid_lp")
     # In the CLI section (after other parser.add_argument calls)
-    parser.add_argument("--heldout_frac", type=float, default=0.0,
+    parser.add_argument("--heldout_frac", type=float, default=0.2,
                     help="Fraction of MDPs to hold out for evaluation (0.0 to disable)")
 
     args = parser.parse_args()

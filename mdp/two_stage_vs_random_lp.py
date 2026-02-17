@@ -118,20 +118,23 @@ def _compute_Q_wrapper(args):
 
 #     return Q_list, None
 
-
 def lp_atomic_to_Q_lists(
     envs,
-    atoms_flat,          # list of (env_idx, atom)
-    SFs,                 # successor features — required for constraint derivation
-    epsilon=1e-6,        # minimum margin
+    atoms_flat,
+    SFs,
+    epsilon=1e-4,
     vi_epsilon=1e-6,
 ):
-    # Group atoms back per environment (needed by derive_constraints_from_atoms)
+    import numpy as np
+    import pulp
+    from concurrent.futures import ProcessPoolExecutor
+
+    # Group atoms per environment
     atoms_per_env = [[] for _ in envs]
     for env_idx, atom in atoms_flat:
         atoms_per_env[env_idx].append(atom)
 
-    # Derive constraint matrix from selected atoms
+    # Derive constraints
     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
         atoms_per_env,
         SFs,
@@ -140,38 +143,49 @@ def lp_atomic_to_Q_lists(
 
     if U_atoms is None or len(U_atoms) == 0:
         print("Warning: No constraints from selected atoms → using zero reward")
-        w_sol = np.zeros(len(envs[0].feature_map))  # assume feature dim from env
+        w_sol = np.zeros(len(envs[0].feature_map))
     else:
-        
         U = remove_redundant_constraints(U_atoms)
-        U = np.asarray(U, dtype=float)           
+        U = np.asarray(U, dtype=float)
+
+        # -------------------------------------------------
+        # ✅ Problem 3 Fix: Normalize constraint rows
+        # -------------------------------------------------
+        row_norms = np.linalg.norm(U, axis=1, keepdims=True)
+        row_norms[row_norms == 0] = 1.0
+        U = U / row_norms
+
         d = U.shape[1]
         n = U.shape[0]
 
-        prob = pulp.LpProblem("MaxMarginRewardLP", pulp.LpMaximize)
+        prob = pulp.LpProblem("MaxMinMarginRewardLP", pulp.LpMaximize)
 
         # Reward weights
         w = [pulp.LpVariable(f"w_{j}") for j in range(d)]
 
-        # Objective: maximize sum of margins
-        margins = [pulp.lpSum(U[i, j] * w[j] for j in range(d)) for i in range(n)]
-        prob += pulp.lpSum(margins)
+        # -------------------------------------------------
+        # ✅ Problem 1 Fix: True Max-Min Margin
+        # -------------------------------------------------
+        t = pulp.LpVariable("t", lowBound=0)
 
-        # Hard margin constraints
-        for m in margins:
-            prob += m >= epsilon
+        # Objective: maximize minimum margin
+        prob += t
+
+        # All constraints must be ≥ t
+        for i in range(n):
+            prob += pulp.lpSum(U[i, j] * w[j] for j in range(d)) >= t
 
         # L1 normalization: ∑ |w_j| = 1
         abs_w = [pulp.LpVariable(f"abs_w_{j}", lowBound=0) for j in range(d)]
         for j in range(d):
             prob += abs_w[j] >= w[j]
             prob += abs_w[j] >= -w[j]
-        #prob += pulp.lpSum(abs_w) == 1
+
         prob += pulp.lpSum(abs_w) == 1
 
         # Solve
         status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
-        #print(pulp.LpStatus[status])
+
         if pulp.LpStatus[status] != "Optimal":
             print(f"LP not optimal ({pulp.LpStatus[status]}) → using zero vector")
             w_sol = np.zeros(d)
@@ -180,9 +194,80 @@ def lp_atomic_to_Q_lists(
 
     # Compute Q for all environments
     with ProcessPoolExecutor() as ex:
-        Q_list = list(ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs]))
+        Q_list = list(
+            ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs])
+        )
 
-    return Q_list, None  # keep signature compatible (no mean solution)
+    return Q_list, None
+
+
+
+
+
+# def lp_atomic_to_Q_lists(
+#     envs,
+#     atoms_flat,          # list of (env_idx, atom)
+#     SFs,                 # successor features — required for constraint derivation
+#     epsilon=1e-4,        # minimum margin
+#     vi_epsilon=1e-6,
+# ):
+#     # Group atoms back per environment (needed by derive_constraints_from_atoms)
+#     atoms_per_env = [[] for _ in envs]
+#     for env_idx, atom in atoms_flat:
+#         atoms_per_env[env_idx].append(atom)
+
+#     # Derive constraint matrix from selected atoms
+#     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
+#         atoms_per_env,
+#         SFs,
+#         envs,
+#     )
+
+#     if U_atoms is None or len(U_atoms) == 0:
+#         print("Warning: No constraints from selected atoms → using zero reward")
+#         w_sol = np.zeros(len(envs[0].feature_map))  # assume feature dim from env
+#     else:
+        
+#         U = remove_redundant_constraints(U_atoms)
+#         U = np.asarray(U_atoms, dtype=float)           
+#         d = U.shape[1]
+#         n = U.shape[0]
+
+#         prob = pulp.LpProblem("MaxMarginRewardLP", pulp.LpMaximize)
+
+#         # Reward weights
+#         w = [pulp.LpVariable(f"w_{j}") for j in range(d)]
+
+#         # Objective: maximize sum of margins
+#         margins = [pulp.lpSum(U[i, j] * w[j] for j in range(d)) for i in range(n)]
+#         prob += pulp.lpSum(margins)
+
+#         # Hard margin constraints
+#         for m in margins:
+#             prob += m >= epsilon
+
+#         # L1 normalization: ∑ |w_j| = 1
+#         abs_w = [pulp.LpVariable(f"abs_w_{j}", lowBound=0) for j in range(d)]
+#         for j in range(d):
+#             prob += abs_w[j] >= w[j]
+#             prob += abs_w[j] >= -w[j]
+#         #prob += pulp.lpSum(abs_w) == 1
+#         prob += pulp.lpSum(abs_w) == 1
+
+#         # Solve
+#         status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
+#         #print(pulp.LpStatus[status])
+#         if pulp.LpStatus[status] != "Optimal":
+#             print(f"LP not optimal ({pulp.LpStatus[status]}) → using zero vector")
+#             w_sol = np.zeros(d)
+#         else:
+#             w_sol = np.array([pulp.value(wj) for wj in w])
+
+#     # Compute Q for all environments
+#     with ProcessPoolExecutor() as ex:
+#         Q_list = list(ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs]))
+
+#     return Q_list, None  # keep signature compatible (no mean solution)
 
 # def lp_atomic_to_Q_lists(
 #     envs,
