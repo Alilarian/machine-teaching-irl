@@ -192,8 +192,23 @@ def lp_atomic_to_Q_and_wmap(mdps, atoms_flat, Psi_sa_list, args):
 # =============================================================================
 # Baselines
 # =============================================================================
+# def random_atom_trial(args_tuple):
+#     trial_id, mdps, atoms_per_env, k_atoms, args, enabled_feedback, Psi_sa_list = args_tuple
+#     rng = np.random.default_rng(args.seed + trial_id)
+#     pool = [
+#         (env_idx, atom)
+#         for env_idx, atoms in enumerate(atoms_per_env)
+#         for atom in atoms
+#     ]
+#     idxs = rng.choice(len(pool), size=k_atoms, replace=False)
+#     chosen = [pool[i] for i in idxs]
+#     Q_list, _ = lp_atomic_to_Q_and_wmap(
+#         mdps, chosen, Psi_sa_list, args
+#     )
+#     return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
+
 def random_atom_trial(args_tuple):
-    trial_id, mdps, atoms_per_env, k_atoms, args, enabled_feedback, Psi_sa_list = args_tuple
+    trial_id, mdps, atoms_per_env, k_atoms, args, enabled_feedback, Psi_sa_list, heldout_mdps = args_tuple
     rng = np.random.default_rng(args.seed + trial_id)
     pool = [
         (env_idx, atom)
@@ -202,10 +217,21 @@ def random_atom_trial(args_tuple):
     ]
     idxs = rng.choice(len(pool), size=k_atoms, replace=False)
     chosen = [pool[i] for i in idxs]
-    Q_list, _ = lp_atomic_to_Q_and_wmap(
+    train_Q_list, w_sol = lp_atomic_to_Q_and_wmap(
         mdps, chosen, Psi_sa_list, args
     )
-    return regrets_from_Q(mdps, Q_list, mdps[0]["true_w"])
+    train_reg = regrets_from_Q(mdps, train_Q_list, mdps[0]["true_w"])
+    if heldout_mdps:
+        _, heldout_Q_list, _ = value_iteration_next_state_multi(
+            mdps=heldout_mdps,
+            theta=w_sol,
+            gamma=args.gamma,
+            n_jobs=1,  # Use 1 job per process to avoid nesting issues
+        )
+        heldout_reg = regrets_from_Q(heldout_mdps, heldout_Q_list, mdps[0]["true_w"])
+    else:
+        heldout_reg = None
+    return train_reg, heldout_reg
 
 # (other baseline functions remain commented out — unchanged)
 
@@ -222,22 +248,45 @@ def main(args):
         seed=args.seed,
         gamma=args.gamma,
     )
-    theta_true = mdps[0]["true_w"]
+
+
+    rng = np.random.default_rng(args.seed)
+    n_envs = args.n_envs
+    if args.heldout_frac > 0:
+        n_train = int(n_envs * (1 - args.heldout_frac))
+        train_idxs = rng.choice(n_envs, n_train, replace=False)
+        train_idxs = sorted(train_idxs)
+        heldout_idxs = sorted(set(range(n_envs)) - set(train_idxs))
+        train_envs = [envs[i] for i in train_idxs]
+        heldout_envs = [envs[i] for i in heldout_idxs]
+        train_mdps = [mdps[i] for i in train_idxs]
+        heldout_mdps = [mdps[i] for i in heldout_idxs]
+    else:
+        train_envs = envs
+        heldout_envs = []
+        train_mdps = mdps
+        heldout_mdps = []
+    
+    theta_true = train_mdps[0]["true_w"]
+
 
     # 2) Oracle Value Iteration
-    _, Q_list, pi_list = value_iteration_next_state_multi(
-        mdps=mdps,
+    _, train_Q_list, train_pi_list = value_iteration_next_state_multi(
+        mdps=train_mdps,
         theta=theta_true,
         gamma=args.gamma,
         n_jobs=args.n_jobs,
     )
-    Psi_sa_list, Psi_s_list = compute_successor_features_multi(
-        mdps=mdps,
-        Q_list=Q_list,
+
+    # ... (Psi computation)
+    train_Psi_sa_list, train_Psi_s_list = compute_successor_features_multi(
+        mdps=train_mdps,
+        Q_list=train_Q_list,
         gamma=args.gamma,
         n_jobs=args.n_jobs,
     )
-    d = Psi_s_list[0].shape[1]
+
+    d = train_Psi_s_list[0].shape[1]
 
     # 4) Feedback Atom Generation
     GEN_SPEC = GenerationSpec_minigrid(
@@ -269,21 +318,27 @@ def main(args):
             else {"alpha": args.alloc},
         ),
     )
+
+    # 4) Feedback Atom Generation
+    # ... (GEN_SPEC unchanged)
     atoms_per_env = generate_candidate_atoms_for_scot_minigrid(
-        mdps=mdps,
-        pi_list=pi_list,
+        mdps=train_mdps,
+        pi_list=train_pi_list,
         spec=GEN_SPEC,
         enumerate_states=enumerate_states,
         max_horizon=400,
     )
+
     U_atoms_per_env = constraints_from_atoms_multi_env(
         atoms_per_env=atoms_per_env,
-        mdps=mdps,
-        Psi_sa_list=Psi_sa_list,
-        terminal_mask_list=[mdp["terminal"] for mdp in mdps],
+        mdps=train_mdps,
+        Psi_sa_list=train_Psi_sa_list,
+        terminal_mask_list=[mdp["terminal"] for mdp in train_mdps],
         normalize=True,
         n_jobs=args.n_jobs,
     )
+
+
     U_atoms_flat = [c for env in U_atoms_per_env for atom_cs in env for c in atom_cs]
     U_atoms_unique = remove_redundant_constraints(np.vstack(U_atoms_flat))
     U_universal = remove_redundant_constraints(U_atoms_unique)
@@ -314,25 +369,39 @@ def main(args):
     )
 
     # 6) Reward Learning — LP
-    Q_learned, w_map = lp_atomic_to_Q_and_wmap(
-        mdps, atoms_flat, Psi_sa_list, args
+    train_Q_learned, w_map = lp_atomic_to_Q_and_wmap(
+        mdps=train_mdps, atoms_flat=atoms_flat, Psi_sa_list=train_Psi_sa_list, args=args
     )
-    reg_scot = regrets_from_Q(mdps, Q_learned, theta_true)
+    train_reg_scot = regrets_from_Q(train_mdps, train_Q_learned, theta_true)
+
+    if heldout_mdps:
+        _, heldout_Q_learned, _ = value_iteration_next_state_multi(
+            mdps=heldout_mdps,
+            theta=w_map,
+            gamma=args.gamma,
+            n_jobs=args.n_jobs,
+        )
+        heldout_reg_scot = regrets_from_Q(heldout_mdps, heldout_Q_learned, theta_true)
+    else:
+        heldout_reg_scot = None
 
     # 7) Baselines
     k_atoms = len(out["chosen"])
     used_envs = sorted(set(out["selected_mdps"]))
-    n_mdps_to_pick = len(used_envs)
 
     with ProcessPoolExecutor() as ex:
-        reg_rand = list(ex.map(
+        results_list = list(ex.map(
             random_atom_trial,
             [
-                (t, mdps, atoms_per_env, k_atoms, args, enabled_feedback, Psi_sa_list)
+                (t, train_mdps, atoms_per_env, k_atoms, args, enabled_feedback, train_Psi_sa_list, heldout_mdps)
                 for t in range(args.random_trials)
             ]
         ))
-    reg_rand = np.vstack(reg_rand)
+    reg_rand = np.vstack([r[0] for r in results_list])
+    if heldout_mdps:
+        heldout_reg_rand = np.vstack([r[1] for r in results_list])
+    else:
+        heldout_reg_rand = None
 
     # (other baselines remain commented)
 
@@ -370,8 +439,15 @@ def main(args):
     results = {
         "methods": {
             "two_stage": {
-                "regret": reg_scot.tolist(),
-                "mean_regret": float(np.mean(reg_scot)),
+                # Training set (what was originally called "regret")
+                "regret": train_reg_scot.tolist(),
+                "mean_regret": float(np.mean(train_reg_scot)),
+                
+                # Held-out set (new)
+                "heldout_regret": heldout_reg_scot.tolist() if heldout_reg_scot is not None else None,
+                "mean_heldout_regret": float(np.mean(heldout_reg_scot)) if heldout_reg_scot is not None else None,
+                
+                # The rest stays exactly the same
                 "selection_stats": {
                     "num_atoms_selected": int(len(out["chosen"])),
                     "num_envs_used": int(len(out["selected_mdps"])),
@@ -383,8 +459,15 @@ def main(args):
                 },
             },
             "random": {
+                # Training set regrets — shape: (n_random_trials, n_train_mdps)
                 "regret": reg_rand.tolist(),
                 "mean_regret": float(np.mean(reg_rand)),
+                
+                # Held-out set regrets — shape: (n_random_trials, n_heldout_mdps) or None
+                "heldout_regret": heldout_reg_rand.tolist() if heldout_reg_rand is not None else None,
+                "mean_heldout_regret": float(np.mean(heldout_reg_rand)) if heldout_reg_rand is not None else None,
+                
+                # The rest stays the same (these are training-set based stats)
                 "selection_stats": {
                     "mdp_counts": rand_mdp_counts,
                     "mean_mdp_count": float(np.mean(rand_mdp_counts)),
@@ -396,11 +479,15 @@ def main(args):
                     "mean_coverage": float(np.mean(rand_coverages)),
                 },
             },
+            # If you later uncomment other baselines, apply similar pattern:
+            # e.g. "active", "diversity", etc. would also get heldout_* keys
         },
+        
         "universal_constraints": {
             "U_atoms_unique": int(len(U_atoms_unique)),
             "U_union_unique": int(len(U_universal)),
         },
+        
         "config": {
             "seed": args.seed,
             "n_envs": args.n_envs,
@@ -415,8 +502,14 @@ def main(args):
             "lp": {
                 "epsilon": args.epsilon,
             },
+            # ─── New field added for the held-out experiment ───
+            "heldout_frac": args.heldout_frac,
+            # You can also add these if useful for analysis:
+            # "n_train": len(train_mdps),
+            # "n_heldout": len(heldout_mdps),
         },
     }
+
 
     os.makedirs(args.result_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -451,6 +544,9 @@ if __name__ == "__main__":
                         help="Minimum margin for LP hard constraints")
     parser.add_argument("--random_trials", type=int, default=10)
     parser.add_argument("--result_dir", type=str, default="results_minigrid_lp")
+    # In the CLI section (after other parser.add_argument calls)
+    parser.add_argument("--heldout_frac", type=float, default=0.0,
+                    help="Fraction of MDPs to hold out for evaluation (0.0 to disable)")
 
     args = parser.parse_args()
     if args.alloc_method != "uniform" and args.alloc is None:

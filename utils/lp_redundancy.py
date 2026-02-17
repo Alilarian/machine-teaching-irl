@@ -34,7 +34,6 @@ def is_redundant_constraint(h, H, epsilon=1e-4):
 
     return res.fun >= -epsilon
 
-
 def remove_redundant_constraints(halfspaces, epsilon=1e-4):
     halfspaces = [np.asarray(h, float) for h in halfspaces]
     seen = set()

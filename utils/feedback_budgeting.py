@@ -379,7 +379,7 @@ def _simulate_improvement_one(env, traj, num_random_trajs, seed: int):
     best_return = original_return
 
     for _ in range(num_random_trajs):
-        new_traj = generate_random_trajectory_from_state(env, start_state, length, rng=rng)
+        new_traj = generate_random_trajectory_from_state(env, start_state, length, rng=None)
         new_return = evaluate_trajectory(env, new_traj)
         if new_return > best_return:
             best_return = new_return

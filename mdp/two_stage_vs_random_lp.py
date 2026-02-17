@@ -57,14 +57,73 @@ def _compute_Q_wrapper(args):
     env, w, vi_eps = args
     return compute_Q_from_weights_with_VI(env, w, vi_epsilon=vi_eps)
 
+
 # =============================================================================
 # LP-based reward inference (replaces BIRL)
 # =============================================================================
+# import cvxpy as cp
+
+# def lp_atomic_to_Q_lists(
+#     envs,
+#     atoms_flat,
+#     SFs,
+#     epsilon=1e-8,
+#     vi_epsilon=1e-6,
+# ):
+#     atoms_per_env = [[] for _ in envs]
+#     for env_idx, atom in atoms_flat:
+#         atoms_per_env[env_idx].append(atom)
+
+#     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
+#         atoms_per_env,
+#         SFs,
+#         envs,
+#     )
+
+#     if U_atoms is None or len(U_atoms) == 0:
+#         print("Warning: No constraints → zero reward")
+#         w_sol = np.zeros(len(envs[0].feature_map))
+#     else:
+#         U = remove_redundant_constraints(U_atoms)
+#         U = np.asarray(U, dtype=float)
+#         d = U.shape[1]
+#         n = U.shape[0]
+
+#         print(f"[LP→QP] {n} constraints, dim = {d}")
+
+#         w = cp.Variable(d)
+#         objective = cp.Maximize(cp.sum(U @ w))           # same as before
+#         constraints = [
+#             U @ w >= epsilon,                             # margin constraints
+#             cp.sum_squares(w) == 1                        # ← L2 norm = 1
+#         ]
+
+#         problem = cp.Problem(objective, constraints)
+
+#         try:
+#             problem.solve(solver=cp.SCS, eps=1e-9)        # or cp.ECOS, cp.MOSEK if licensed
+#             if problem.status in ["optimal", "optimal_inaccurate"]:
+#                 w_sol = w.value
+#                 print(f"[CVXPY] Solved — ||w||₂ = {np.linalg.norm(w_sol):.6f}")
+#                 print(f"w = {w_sol.round(4)}")
+#             else:
+#                 print(f"[CVXPY] Status: {problem.status} → zero vector")
+#                 w_sol = np.zeros(d)
+#         except Exception as e:
+#             print(f"[CVXPY] Solver exception: {e} → zero vector")
+#             w_sol = np.zeros(d)
+
+#     with ProcessPoolExecutor() as ex:
+#         Q_list = list(ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs]))
+
+#     return Q_list, None
+
+
 def lp_atomic_to_Q_lists(
     envs,
     atoms_flat,          # list of (env_idx, atom)
     SFs,                 # successor features — required for constraint derivation
-    epsilon=1e-2,        # minimum margin
+    epsilon=1e-6,        # minimum margin
     vi_epsilon=1e-6,
 ):
     # Group atoms back per environment (needed by derive_constraints_from_atoms)
@@ -83,6 +142,7 @@ def lp_atomic_to_Q_lists(
         print("Warning: No constraints from selected atoms → using zero reward")
         w_sol = np.zeros(len(envs[0].feature_map))  # assume feature dim from env
     else:
+        
         U = remove_redundant_constraints(U_atoms)
         U = np.asarray(U, dtype=float)           
         d = U.shape[1]
@@ -106,10 +166,12 @@ def lp_atomic_to_Q_lists(
         for j in range(d):
             prob += abs_w[j] >= w[j]
             prob += abs_w[j] >= -w[j]
+        #prob += pulp.lpSum(abs_w) == 1
         prob += pulp.lpSum(abs_w) == 1
 
         # Solve
         status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
+        #print(pulp.LpStatus[status])
         if pulp.LpStatus[status] != "Optimal":
             print(f"LP not optimal ({pulp.LpStatus[status]}) → using zero vector")
             w_sol = np.zeros(d)
@@ -121,6 +183,115 @@ def lp_atomic_to_Q_lists(
         Q_list = list(ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs]))
 
     return Q_list, None  # keep signature compatible (no mean solution)
+
+# def lp_atomic_to_Q_lists(
+#     envs,
+#     atoms_flat,          # list of (env_idx, atom)
+#     SFs,                 # successor features — required for constraint derivation
+#     epsilon=1e-5,        # desired minimum margin
+#     vi_epsilon=1e-6,
+#     use_slack=False,     # ← NEW: whether to allow soft constraints
+#     slack_cost=10.0,     # ← NEW: penalty per unit of slack (higher = stricter)
+# ):
+#     # Group atoms back per environment
+#     atoms_per_env = [[] for _ in envs]
+#     for env_idx, atom in atoms_flat:
+#         atoms_per_env[env_idx].append(atom)
+
+#     # Derive constraint matrix
+#     U_per_env_atoms, U_atoms = derive_constraints_from_atoms(
+#         atoms_per_env,
+#         SFs,
+#         envs,
+#     )
+
+#     if U_atoms is None or len(U_atoms) == 0:
+#         print("Warning: No constraints from selected atoms → using zero reward")
+#         w_sol = np.zeros(len(envs[0].feature_map))
+#     else:
+#         U = remove_redundant_constraints(U_atoms)
+#         U = np.asarray(U, dtype=float)
+#         d = U.shape[1]
+#         n = U.shape[0]
+
+#         print(f"LP: {n} constraints, dim = {d}, epsilon = {epsilon}")
+
+#         prob = pulp.LpProblem("MaxMarginRewardLP", pulp.LpMaximize)
+
+#         # Reward weights
+#         w = [pulp.LpVariable(f"w_{j}") for j in range(d)]
+
+#         # Objective: maximize sum of margins
+#         margins = [pulp.lpSum(U[i, j] * w[j] for j in range(d)) for i in range(n)]
+#         prob += pulp.lpSum(margins)
+
+#         # L1 normalization: ∑ |w_j| = 1
+#         abs_w = [pulp.LpVariable(f"abs_w_{j}", lowBound=0) for j in range(d)]
+#         for j in range(d):
+#             prob += abs_w[j] >= w[j]
+#             prob += abs_w[j] >= -w[j]
+#         prob += pulp.lpSum(abs_w) == 1
+
+#         # Margin constraints — hard or soft
+#         if use_slack:
+#             #print(f"Using soft margins with slack_cost = {slack_cost}")
+#             xi = [pulp.LpVariable(f"xi_{i}", lowBound=0) for i in range(n)]
+#             for i in range(n):
+#                 prob += margins[i] >= epsilon - xi[i]
+#             # Penalize total slack
+#             prob += -slack_cost * pulp.lpSum(xi)
+#         else:
+#             #print("Using hard margins")
+#             for m in margins:
+#                 prob += m >= epsilon
+
+#         # Solve
+#         status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
+#         status_name = pulp.LpStatus[status]
+#         #print(f"Solver status: {status_name}")
+
+#         if status_name != "Optimal":
+#             #print(f"LP not optimal ({status_name}) → trying to extract any feasible solution...")
+#             w_sol_raw = np.array([pulp.value(wj) for wj in w])
+
+#             if np.all(np.isnan(w_sol_raw)):
+#                 #print("  → No usable solution found → returning zero vector")
+#                 w_sol = np.zeros(d)
+#             else:
+#                 norm = np.linalg.norm(w_sol_raw)
+#                 #print(f"  → Extracted feasible w with ||w||₂ = {norm:.6f}")
+#                 if norm > 1e-10:
+#                     w_sol = w_sol_raw / norm
+#                 else:
+#                     w_sol = np.zeros(d)
+
+#         else:
+#             w_sol = np.array([pulp.value(wj) for wj in w])
+#             norm = np.linalg.norm(w_sol)
+#             #print(f"Optimal solution found — ||w||₂ = {norm:.6f}")
+
+#             # Optional: normalize to unit L2 norm (recommended)
+#             if norm > 1e-10:
+#                 w_sol /= norm
+#                 # Sign convention: first large component positive
+#                 idx = np.argmax(np.abs(w_sol))
+#                 if w_sol[idx] < 0:
+#                     w_sol = -w_sol
+
+#             # If slacks were used → report total violation
+#             if use_slack:
+#                 total_slack = sum(pulp.value(xi_i) for xi_i in xi)
+#                 #print(f"  → Total slack / violation = {total_slack:.6f}")
+
+#     # Compute Q-values
+#     with ProcessPoolExecutor() as ex:
+#         Q_list = list(ex.map(_compute_Q_wrapper, [(e, w_sol, vi_epsilon) for e in envs]))
+
+#     return Q_list, None
+
+# USE_SLACK = False
+# SLACK_COST = 1000
+
 
 # =============================================================================
 # Regret computation (unchanged)
@@ -279,7 +450,7 @@ def run_experiment(
     print("GENERATING CONSTRAINTS")
     enabled = set(feedback)
     spec = GenerationSpec(
-        seed=seed,
+        seed=None,
         base_max_horizon=200,
         demo=DemoSpec(
             enabled=("demo" in enabled),
