@@ -197,11 +197,7 @@ def allocate_budgets(
 # 3. Trajectory utilities (ALL randomness uses rng)
 # ============================================================
 
-# def evaluate_trajectory(env, traj):
-#     """Compute total reward of a trajectory."""
-#     return sum(env.compute_reward(s) for s, _ in traj)
-
-def evaluate_trajectory(env, traj, gamma=0.99):
+def evaluate_trajectory(env, traj, gamma=1):
     """
     Compute the **discounted** total reward of a trajectory.
     
@@ -221,26 +217,68 @@ def evaluate_trajectory(env, traj, gamma=0.99):
         total += (gamma ** t) * r
     return total
 
-def generate_random_trajectory(env, *, max_horizon=150, rng: np.random.Generator):
+
+
+import numpy as np
+from typing import List, Tuple
+
+def enumerate_non_terminal_states(env) -> List[int]:
+    """
+    Enumerate all non-terminal flat state indices (0 to S-1).
+    Assumes env has .num_states and .terminal_states (set or list).
+    """
+    S = env.num_states  # or env.get_num_states()
+    terminals = set(getattr(env, "terminal_states", []))
+    return [s for s in range(S) if s not in terminals]
+
+def generate_random_trajectory(
+    env,
+    *,
+    max_horizon: int = 150,
+    rng: np.random.Generator
+) -> List[Tuple[int, int | None]]:
     """
     Generate a random trajectory using uniformly random actions.
+    Compatible with GridWorldMDPFromLayoutEnv (dict observation).
     """
     traj = []
-    obs = env.reset()
-    terminal_states = obs["terminal states"]
 
-    try:
-        state = obs["agent"][0] * env.columns + obs["agent"][1]
-    except Exception:
-        state = obs["agent"][0] * env.size + obs["agent"][1]
+    # Gymnasium reset returns (obs, info)
+    reset_result = env.reset()
+    if isinstance(reset_result, tuple) and len(reset_result) == 2:
+        obs, _info = reset_result
+    else:
+        obs = reset_result  # fallback for older/custom behavior
+
+    # Safely get terminal states and agent position
+    if isinstance(obs, dict):
+        terminal_states = set(obs.get("terminal states", []))
+        agent_pos = obs.get("agent")
+    else:
+        # Fallback for unexpected observation format
+        terminal_states = set(getattr(env, "terminal_states", []))
+        agent_pos = None  # will use flat state if possible
+
+    # Get starting flat state
+    if agent_pos is not None and len(agent_pos) == 2:
+        # Preferred: use agent position from observation
+        row, col = agent_pos
+        state = int(row * getattr(env, "columns", getattr(env, "size", 10)) + col)
+    else:
+        # Fallback: assume env has a way to know current state or use 0
+        state = 0  # or raise error if you prefer
+        # Alternative (if you added current_state tracking):
+        # state = getattr(env, "_current_flat_state", 0)
 
     for _ in range(max_horizon):
         if state in terminal_states:
             traj.append((state, None))
             break
 
-        action = int(rng.integers(0, env.num_actions))
-        next_state = int(rng.choice(env.num_states, p=env.transitions[state][action]))
+        action = int(rng.integers(0, env.action_space.n))  # safer than env.num_actions
+        # Sample next state from transition probabilities
+        probs = env.transitions[state, action]
+        next_state = int(rng.choice(env.num_states, p=probs))
 
         traj.append((state, action))
         state = next_state
@@ -248,18 +286,29 @@ def generate_random_trajectory(env, *, max_horizon=150, rng: np.random.Generator
     return traj
 
 
-def generate_random_trajectory_from_state(env, start_state, length, *, rng: np.random.Generator):
+def generate_random_trajectory_from_state(
+    env,
+    start_state: int,
+    length: int,
+    *,
+    rng: np.random.Generator
+) -> List[Tuple[int, int | None]]:
+    """
+    Generate a random trajectory starting from a given flat state index.
+    Does not call reset(), directly uses transitions.
+    """
     traj = []
     state = int(start_state)
-    terminals = set(env.terminal_states or [])
+    terminals = set(getattr(env, "terminal_states", []))
 
     for _ in range(length):
         if state in terminals:
             traj.append((state, None))
             break
 
-        action = int(rng.integers(0, env.num_actions))
-        next_state = int(rng.choice(env.num_states, p=env.transitions[state][action]))
+        action = int(rng.integers(0, env.action_space.n))
+        probs = env.transitions[state, action]
+        next_state = int(rng.choice(env.num_states, p=probs))
 
         traj.append((state, action))
         state = next_state
@@ -274,43 +323,80 @@ def _rollout_one(env, min_length, max_horizon, seed: int):
     return t if len(t) >= min_length else None
 
 
+# def generate_valid_trajectories(
+#     env,
+#     n,
+#     *,
+#     min_length=3,
+#     max_horizon=150,
+#     max_workers=8,
+#     oversample_factor=2,
+#     rng: np.random.Generator,
+# ):
+#     """
+#     Thread-parallel trajectory generation inside ONE env.
+#     Reproducible: we generate per-rollout seeds from rng.
+#     """
+#     trajs = []
+#     needed = int(n)
+#     if needed <= 0:
+#         return []
+
+#     with ThreadPoolExecutor(max_workers=max_workers) as ex:
+#         while len(trajs) < n:
+#             batch = int(oversample_factor * needed)
+#             seeds = [int(rng.integers(0, 2**32 - 1)) for _ in range(batch)]
+#             futures = [
+#                 ex.submit(_rollout_one, env, min_length, max_horizon, s)
+#                 for s in seeds
+#             ]
+#             for f in futures:
+#                 t = f.result()
+#                 if t is not None:
+#                     trajs.append(t)
+#                     if len(trajs) >= n:
+#                         break
+#             needed = n - len(trajs)
+
+#     return trajs[:n]
+
 def generate_valid_trajectories(
     env,
-    n,
     *,
-    min_length=3,
-    max_horizon=150,
-    max_workers=8,
-    oversample_factor=2,
+    trajs_per_state: int = 50,
+    max_horizon: int = 150,
+    base_threads: int = 8,
     rng: np.random.Generator,
-):
+) -> List[List[Tuple[int, int | None]]]:
     """
-    Thread-parallel trajectory generation inside ONE env.
-    Reproducible: we generate per-rollout seeds from rng.
+    Generate trajs_per_state random trajectories from EACH non-terminal state.
+    Thread-parallel for efficiency.
     """
-    trajs = []
-    needed = int(n)
-    if needed <= 0:
+    states = enumerate_non_terminal_states(env)
+    if not states:
         return []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        while len(trajs) < n:
-            batch = int(oversample_factor * needed)
-            seeds = [int(rng.integers(0, 2**32 - 1)) for _ in range(batch)]
-            futures = [
-                ex.submit(_rollout_one, env, min_length, max_horizon, s)
-                for s in seeds
-            ]
-            for f in futures:
-                t = f.result()
-                if t is not None:
-                    trajs.append(t)
-                    if len(trajs) >= n:
-                        break
-            needed = n - len(trajs)
-
-    return trajs[:n]
-
+    pool = []
+    # Submit all rollouts (per state, per traj)
+    with ThreadPoolExecutor(max_workers=base_threads) as ex:
+        futures = []
+        for state in states:
+            for _ in range(trajs_per_state):
+                # Split seed for reproducibility
+                seed = _split_seed(rng)
+                futures.append(
+                    ex.submit(
+                        generate_random_trajectory_from_state,
+                        env,
+                        state,
+                        max_horizon,
+                        rng=_make_rng(seed)
+                    )
+                )
+        for f in as_completed(futures):
+            t = f.result()
+            if t:  # skip empty
+                pool.append(t)
+    return pool
 
 # ============================================================
 # 4. Q-based (optimal) demos with env+state budgeting
@@ -389,22 +475,43 @@ def generate_q_optimal_trajectories(
 # ============================================================
 
 def _simulate_improvement_one(env, traj, num_random_trajs, seed: int):
-    rng = _make_rng(seed)
-    start_state = traj[0][0]
-    length = len(traj)
+    """
+    Try to find a strictly better trajectory starting from the same start state.
+    Returns (best_traj, original_traj) if improvement found, else None.
+    """
+    if not traj:  # empty trajectory → skip
+        return None
 
+    rng = _make_rng(seed)
+    start_state = traj[0][0]          # first state of original trajectory
+    original_length = len(traj)
     original_return = evaluate_trajectory(env, traj)
+
     best_traj = traj
     best_return = original_return
 
     for _ in range(num_random_trajs):
-        new_traj = generate_random_trajectory_from_state(env, start_state, length, rng=None)
+        # Generate random trajectory from same start state, same max length
+        new_traj = generate_random_trajectory_from_state(
+            env,
+            start_state=start_state,
+            length=original_length,           # keep same length (or use max_horizon?)
+            rng=rng
+        )
+        if not new_traj:
+            continue
+
         new_return = evaluate_trajectory(env, new_traj)
+
         if new_return > best_return:
             best_return = new_return
             best_traj = new_traj
 
-    return (best_traj, traj)
+    # Only return if we actually found something better
+    if best_return > original_return:
+        return (best_traj, traj)
+    else:
+        return None
 
 
 def simulate_corrections(
@@ -414,11 +521,30 @@ def simulate_corrections(
     num_random_trajs=25,
     max_workers=8,
     rng: np.random.Generator,
-):
+) -> List[Tuple[list, list]]:   # List[(improved_traj, original_traj)]
+    """
+    For each input trajectory, try to find a better one from the same start state.
+    Returns only the pairs where an improvement was actually found.
+    """
+    if not trajectories:
+        return []
+
     seeds = [int(rng.integers(0, 2**32 - 1)) for _ in range(len(trajectories))]
+
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        return list(ex.map(lambda args: _simulate_improvement_one(env, args[0], num_random_trajs, args[1]),
-                           zip(trajectories, seeds)))
+        # Submit all improvement searches in parallel
+        futures = [
+            ex.submit(_simulate_improvement_one, env, traj, num_random_trajs, seed)
+            for traj, seed in zip(trajectories, seeds)
+        ]
+
+        corrections = []
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:           # only keep successful improvements
+                corrections.append(result)
+
+    return corrections
 
 # ============================================================
 # 6. Pairwise (reproducible, no quadratic blowup)
@@ -494,7 +620,6 @@ def simulate_human_estop_one(env, full_trajectory, beta=2.0):
     t_stop = int(np.argmax(log_probs))
     return (full_trajectory, t_stop)
 
-
 def simulate_human_estops(
     env,
     trajectories,
@@ -552,27 +677,113 @@ class FeedbackSpec:
 class GenerationSpec:
     seed: int = 0
     max_workers: Optional[int] = None
-
     demo: DemoSpec = DemoSpec()
-
     pairwise: FeedbackSpec = FeedbackSpec(enabled=False, total_budget=0)
     estop: FeedbackSpec = FeedbackSpec(enabled=False, total_budget=0)
     improvement: FeedbackSpec = FeedbackSpec(enabled=False, total_budget=0)
-
     # base trajectory pool (used by pairwise/estop/improvement)
+    trajs_per_state: int = 200  # NEW: number of random trajs per non-terminal state
     base_min_length: int = 2
     base_max_horizon: int = 150
     base_threads: int = 8
-
     # improvement internals
     n_random_for_improvement: int = 10
-
     # estop
     estop_beta: float = 10.0
-
 # ============================================================
 # 10. Worker (per-env generation) — picklable
 # ============================================================
+
+# def _generate_candidates_for_one_env(args):
+#     (
+#         env_idx,
+#         env,
+#         qv,
+#         env_seed,
+#         demo_state_budget,        # number of start-states to demo in this env (or None if using fraction)
+#         demo_state_fraction,      # fraction of eligible states in this env (if budget is None)
+#         do_demo,
+#         do_pairwise,
+#         do_estop,
+#         do_improvement,
+#         pw_budget,
+#         estop_budget,
+#         imp_budget,
+#         spec_dict,
+#     ) = args
+
+#     spec = GenerationSpec(**spec_dict)  # reconstruct (dataclasses are picklable too, but dict is safest)
+#     rng = _make_rng(env_seed)
+
+#     C: List[Atom] = []
+
+#     # ---------------- demos (Q-optimal) ----------------
+#     if do_demo and spec.demo.enabled:
+#         q_trajs = generate_q_optimal_trajectories(
+#             env,
+#             qv,
+#             state_fraction=demo_state_fraction,
+#             state_budget=demo_state_budget,
+#             num_rollouts_per_state=spec.demo.num_rollouts_per_state,
+#             max_steps=spec.demo.max_steps,
+#             tie_eps=spec.demo.tie_eps,
+#             rng=rng,
+#         )
+#         C.extend(trajs_to_atoms(env_idx, q_trajs, "demo"))
+
+#     # ---------------- base trajectories ----------------
+#     needs_base = do_pairwise or do_estop or do_improvement
+#     base_trajs = []
+#     if needs_base:
+#         base_count = max(int(pw_budget), int(estop_budget), int(imp_budget))
+#         if base_count > 0:
+#             base_trajs = generate_valid_trajectories(
+#                 env,
+#                 n=base_count,
+#                 min_length=spec.base_min_length,
+#                 max_horizon=spec.base_max_horizon,
+#                 max_workers=spec.base_threads,
+#                 rng=rng,
+#             )
+
+#     # ---------------- pairwise ----------------
+#     if do_pairwise and spec.pairwise.enabled and pw_budget > 0 and base_trajs:
+#         pw = generate_pairwise_comparisons(
+#             env,
+#             base_trajs,
+#             num_comparisons=int(pw_budget),
+#             rng=rng,
+#         )
+#         C.extend(pairwise_to_atoms(env_idx, pw))
+
+#     # ---------------- estop ----------------
+#     if do_estop and spec.estop.enabled and estop_budget > 0 and base_trajs:
+#         k = min(int(estop_budget), len(base_trajs))
+#         idx = rng.choice(len(base_trajs), size=k, replace=False)
+#         estop_trajs = [base_trajs[int(i)] for i in idx]
+#         estops = simulate_human_estops(
+#             env,
+#             estop_trajs,
+#             beta=spec.estop_beta,
+#             max_workers=spec.base_threads,
+#         )
+#         C.extend(estops_to_atoms(env_idx, estops))
+
+#     # ---------------- improvement ----------------
+#     if do_improvement and spec.improvement.enabled and imp_budget > 0 and base_trajs:
+#         k = min(int(imp_budget), len(base_trajs))
+#         idx = rng.choice(len(base_trajs), size=k, replace=False)
+#         imp_trajs = [base_trajs[int(i)] for i in idx]
+#         imps = simulate_corrections(
+#             env,
+#             imp_trajs,
+#             num_random_trajs=spec.n_random_for_improvement,
+#             max_workers=spec.base_threads,
+#             rng=rng,
+#         )
+#         C.extend(corrections_to_atoms(env_idx, imps))
+
+#     return env_idx, C
 
 def _generate_candidates_for_one_env(args):
     (
@@ -580,8 +791,8 @@ def _generate_candidates_for_one_env(args):
         env,
         qv,
         env_seed,
-        demo_state_budget,        # number of start-states to demo in this env (or None if using fraction)
-        demo_state_fraction,      # fraction of eligible states in this env (if budget is None)
+        demo_state_budget, # number of start-states to demo in this env (or None if using fraction)
+        demo_state_fraction, # fraction of eligible states in this env (if budget is None)
         do_demo,
         do_pairwise,
         do_estop,
@@ -591,12 +802,9 @@ def _generate_candidates_for_one_env(args):
         imp_budget,
         spec_dict,
     ) = args
-
-    spec = GenerationSpec(**spec_dict)  # reconstruct (dataclasses are picklable too, but dict is safest)
+    spec = GenerationSpec(**spec_dict)
     rng = _make_rng(env_seed)
-
     C: List[Atom] = []
-
     # ---------------- demos (Q-optimal) ----------------
     if do_demo and spec.demo.enabled:
         q_trajs = generate_q_optimal_trajectories(
@@ -610,22 +818,17 @@ def _generate_candidates_for_one_env(args):
             rng=rng,
         )
         C.extend(trajs_to_atoms(env_idx, q_trajs, "demo"))
-
-    # ---------------- base trajectories ----------------
+    # ---------------- base trajectories (from all states) ----------------
     needs_base = do_pairwise or do_estop or do_improvement
     base_trajs = []
     if needs_base:
-        base_count = max(int(pw_budget), int(estop_budget), int(imp_budget))
-        if base_count > 0:
-            base_trajs = generate_valid_trajectories(
-                env,
-                n=base_count,
-                min_length=spec.base_min_length,
-                max_horizon=spec.base_max_horizon,
-                max_workers=spec.base_threads,
-                rng=rng,
-            )
-
+        base_trajs = generate_valid_trajectories(
+            env,
+            trajs_per_state=spec.trajs_per_state,
+            max_horizon=spec.base_max_horizon,
+            base_threads=spec.base_threads,
+            rng=rng,
+        )
     # ---------------- pairwise ----------------
     if do_pairwise and spec.pairwise.enabled and pw_budget > 0 and base_trajs:
         pw = generate_pairwise_comparisons(
@@ -635,35 +838,35 @@ def _generate_candidates_for_one_env(args):
             rng=rng,
         )
         C.extend(pairwise_to_atoms(env_idx, pw))
-
     # ---------------- estop ----------------
     if do_estop and spec.estop.enabled and estop_budget > 0 and base_trajs:
         k = min(int(estop_budget), len(base_trajs))
-        idx = rng.choice(len(base_trajs), size=k, replace=False)
-        estop_trajs = [base_trajs[int(i)] for i in idx]
-        estops = simulate_human_estops(
-            env,
-            estop_trajs,
-            beta=spec.estop_beta,
-            max_workers=spec.base_threads,
-        )
-        C.extend(estops_to_atoms(env_idx, estops))
-
+        if k > 0:
+            idx = rng.choice(len(base_trajs), size=k, replace=False)
+            estop_trajs = [base_trajs[int(i)] for i in idx]
+            estops = simulate_human_estops(
+                env,
+                estop_trajs,
+                beta=spec.estop_beta,
+                max_workers=spec.base_threads,
+            )
+            C.extend(estops_to_atoms(env_idx, estops))
     # ---------------- improvement ----------------
     if do_improvement and spec.improvement.enabled and imp_budget > 0 and base_trajs:
         k = min(int(imp_budget), len(base_trajs))
-        idx = rng.choice(len(base_trajs), size=k, replace=False)
-        imp_trajs = [base_trajs[int(i)] for i in idx]
-        imps = simulate_corrections(
-            env,
-            imp_trajs,
-            num_random_trajs=spec.n_random_for_improvement,
-            max_workers=spec.base_threads,
-            rng=rng,
-        )
-        C.extend(corrections_to_atoms(env_idx, imps))
-
+        if k > 0:
+            idx = rng.choice(len(base_trajs), size=k, replace=False)
+            imp_trajs = [base_trajs[int(i)] for i in idx]
+            imps = simulate_corrections(
+                env,
+                imp_trajs,
+                num_random_trajs=spec.n_random_for_improvement,
+                max_workers=spec.base_threads,
+                rng=rng,
+            )
+            C.extend(corrections_to_atoms(env_idx, imps))
     return env_idx, C
+
 
 
 # ============================================================
@@ -769,8 +972,10 @@ def generate_candidate_atoms_for_scot(
     spec_dict = {
         "seed": spec.seed,
         "max_workers": spec.max_workers,
+        #"demo": spec.demo,
         "demo": spec.demo,
         "pairwise": spec.pairwise,
+        "trajs_per_state": spec.trajs_per_state,
         "estop": spec.estop,
         "improvement": spec.improvement,
         "base_min_length": spec.base_min_length,

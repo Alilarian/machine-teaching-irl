@@ -174,7 +174,7 @@ def constraints_from_demo(traj, mu_sa, env=None, normalize=True, tol=1e-12):
 
 #     return [diff / norm]
 
-def constraints_from_pairwise(atom_data, env, gamma=0.99):
+def constraints_from_pairwise(atom_data, env, gamma=1):
     preferred, other = atom_data
     
     pref_states = [s for s, _ in preferred]
@@ -197,7 +197,7 @@ def constraints_from_pairwise(atom_data, env, gamma=0.99):
         return []
     return [diff / norm]       # ← or [diff] if you follow the "no unit norm" advice
 
-def constraints_from_estop(atom_data, env, gamma=0.99):
+def constraints_from_estop(atom_data, env, gamma=1):
     traj, t_stop = atom_data
     states_full = [s for s, _ in traj]
     
@@ -215,7 +215,7 @@ def constraints_from_estop(atom_data, env, gamma=0.99):
         return []
     return [diff / norm]
 
-def constraints_from_improvement(atom_data, env, gamma=0.99):
+def constraints_from_improvement(atom_data, env, gamma=1):
     improved, original = atom_data
     
     imp_states = [s for s, _ in improved]

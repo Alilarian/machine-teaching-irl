@@ -1059,33 +1059,33 @@ def expected_value_difference_next_state_multi(
 
 
 
-def trajectory_expected_features(
-    traj,
-    mdp,
-):
-    """
-    Compute discounted feature count:
+# def trajectory_expected_features(
+#     traj,
+#     mdp,
+# ):
+#     """
+#     Compute discounted feature count:
 
-        Φ(τ) = Σ γ^t φ(s_{t+1})
+#         Φ(τ) = Σ γ^t φ(s_{t+1})
 
-    Uses mdp["Phi"] and mdp["idx_of"] directly.
-    """
+#     Uses mdp["Phi"] and mdp["idx_of"] directly.
+#     """
 
-    Phi = mdp["Phi"]          # (S, D)
-    idx_of = mdp["idx_of"]
-    gamma = mdp["gamma"]
+#     Phi = mdp["Phi"]          # (S, D)
+#     idx_of = mdp["idx_of"]
+#     gamma = mdp["gamma"]
 
-    D = Phi.shape[1]
-    phi_sum = np.zeros(D, dtype=float)
+#     D = Phi.shape[1]
+#     phi_sum = np.zeros(D, dtype=float)
 
-    g = 1.0
+#     g = 1.0
 
-    for (_, _, sp) in traj:
-        s_idx = idx_of[sp]
-        phi_sum += g * Phi[s_idx]
-        g *= gamma
+#     for (_, _, sp) in traj:
+#         s_idx = idx_of[sp]
+#         phi_sum += g * Phi[s_idx]
+#         g *= gamma
 
-    return phi_sum
+#     return phi_sum
 
 def constraints_from_pairwise_preferences(
     pairwise_prefs,
