@@ -437,171 +437,171 @@ def generate_q_optimal_trajectories(
 # 5. Improvements / corrections (reproducible)
 # ============================================================
 
-# def _simulate_improvement_one(env, traj, num_random_trajs, seed: int):
-#     """
-#     Try to find a strictly better trajectory starting from the same start state.
-#     Returns (best_traj, original_traj) if improvement found, else None.
-#     """
-#     if not traj:  # empty trajectory → skip
-#         return None
-
-#     rng = _make_rng(seed)
-#     start_state = traj[0][0]          # first state of original trajectory
-#     original_length = len(traj)
-#     original_return = evaluate_trajectory(env, traj)
-
-#     best_traj = traj
-#     best_return = original_return
-
-#     for _ in range(num_random_trajs):
-#         # Generate random trajectory from same start state, same max length
-#         new_traj = generate_random_trajectory_from_state(
-#             env,
-#             start_state=start_state,
-#             length=original_length,           # keep same length (or use max_horizon?)
-#             rng=rng
-#         )
-#         if not new_traj:
-#             continue
-
-#         new_return = evaluate_trajectory(env, new_traj)
-
-#         if new_return > best_return:
-#             best_return = new_return
-#             best_traj = new_traj
-
-#     # Only return if we actually found something better
-#     if best_return > original_return:
-#         return (best_traj, traj)
-#     else:
-#         return None
-
-def _simulate_correction_one(
-    env,
-    q_values,
-    traj,
-    seed: int,
-    tie_eps: float = 1e-10,
-):
+def _simulate_correction_one(env, traj, num_random_trajs, seed: int):
     """
-    Structured correction:
-    - pick random index in first half
-    - keep prefix
-    - roll out optimally from that state
-    - keep same total length
+    Try to find a strictly better trajectory starting from the same start state.
+    Returns (best_traj, original_traj) if improvement found, else None.
     """
-
-    if not traj:
+    if not traj:  # empty trajectory → skip
         return None
 
     rng = _make_rng(seed)
+    start_state = traj[0][0]          # first state of original trajectory
+    original_length = len(traj)
+    original_return = evaluate_trajectory(env, traj)
 
-    L = len(traj)
-    if L < 2:
+    best_traj = traj
+    best_return = original_return
+
+    for _ in range(num_random_trajs):
+        # Generate random trajectory from same start state, same max length
+        new_traj = generate_random_trajectory_from_state(
+            env,
+            start_state=start_state,
+            length=original_length,           # keep same length (or use max_horizon?)
+            rng=rng
+        )
+        if not new_traj:
+            continue
+
+        new_return = evaluate_trajectory(env, new_traj)
+
+        if new_return > best_return:
+            best_return = new_return
+            best_traj = new_traj
+
+    # Only return if we actually found something better
+    if best_return > original_return:
+        return (best_traj, traj)
+    else:
         return None
 
-    # pick index in first half (excluding final terminal marker)
-    max_idx = max(1, L // 2)
-    t = int(rng.integers(0, max_idx))
+# def _simulate_correction_one(
+#     env,
+#     q_values,
+#     traj,
+#     seed: int,
+#     tie_eps: float = 1e-10,
+# ):
+#     """
+#     Structured correction:
+#     - pick random index in first half
+#     - keep prefix
+#     - roll out optimally from that state
+#     - keep same total length
+#     """
 
-    prefix = traj[:t]
-    start_state = traj[t][0]
+#     if not traj:
+#         return None
 
-    terminals = set(getattr(env, "terminal_states", []))
-    T = env.transitions
-    S = env.num_states
-    A = env.action_space.n
+#     rng = _make_rng(seed)
 
-    corrected = list(prefix)
-    s = start_state
+#     L = len(traj)
+#     if L < 2:
+#         return None
 
-    while len(corrected) < L and s not in terminals:
+#     # pick index in first half (excluding final terminal marker)
+#     max_idx = max(1, L // 2)
+#     t = int(rng.integers(0, max_idx))
 
-        q_row = q_values[s]
-        max_q = np.max(q_row)
+#     prefix = traj[:t]
+#     start_state = traj[t][0]
 
-        # tie-aware optimal actions
-        opt_actions = [a for a in range(A) if abs(q_row[a] - max_q) < tie_eps]
-        if not opt_actions:
-            break
+#     terminals = set(getattr(env, "terminal_states", []))
+#     T = env.transitions
+#     S = env.num_states
+#     A = env.action_space.n
 
-        a = int(rng.choice(opt_actions))
-        corrected.append((s, a))
+#     corrected = list(prefix)
+#     s = start_state
 
-        s = int(rng.choice(S, p=T[s, a]))
+#     while len(corrected) < L and s not in terminals:
 
-    # If shorter (hit terminal early), pad nothing — shorter is fine
-    return (corrected, traj)
+#         q_row = q_values[s]
+#         max_q = np.max(q_row)
 
-def simulate_corrections(
-    env,
-    q_values,
-    trajectories,
-    *,
-    max_workers=8,
-    rng: np.random.Generator,
-):
-    """
-    Apply structured correction to each trajectory.
-    """
+#         # tie-aware optimal actions
+#         opt_actions = [a for a in range(A) if abs(q_row[a] - max_q) < tie_eps]
+#         if not opt_actions:
+#             break
 
-    if not trajectories:
-        return []
+#         a = int(rng.choice(opt_actions))
+#         corrected.append((s, a))
 
-    seeds = [int(rng.integers(0, 2**32 - 1)) for _ in trajectories]
+#         s = int(rng.choice(S, p=T[s, a]))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = [
-            ex.submit(
-                _simulate_correction_one,
-                env,
-                q_values,
-                traj,
-                seed,
-            )
-            for traj, seed in zip(trajectories, seeds)
-        ]
-
-        results = []
-        for f in as_completed(futures):
-            out = f.result()
-            if out is not None:
-                results.append(out)
-
-    return results
-
+#     # If shorter (hit terminal early), pad nothing — shorter is fine
+#     return (corrected, traj)
 
 # def simulate_corrections(
 #     env,
+#     q_values,
 #     trajectories,
 #     *,
-#     num_random_trajs=25,
 #     max_workers=8,
 #     rng: np.random.Generator,
-# ) -> List[Tuple[list, list]]:   # List[(improved_traj, original_traj)]
+# ):
 #     """
-#     For each input trajectory, try to find a better one from the same start state.
-#     Returns only the pairs where an improvement was actually found.
+#     Apply structured correction to each trajectory.
 #     """
+
 #     if not trajectories:
 #         return []
 
-#     seeds = [int(rng.integers(0, 2**32 - 1)) for _ in range(len(trajectories))]
+#     seeds = [int(rng.integers(0, 2**32 - 1)) for _ in trajectories]
 
 #     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-#         # Submit all improvement searches in parallel
 #         futures = [
-#             ex.submit(_simulate_improvement_one, env, traj, num_random_trajs, seed)
+#             ex.submit(
+#                 _simulate_correction_one,
+#                 env,
+#                 q_values,
+#                 traj,
+#                 seed,
+#             )
 #             for traj, seed in zip(trajectories, seeds)
 #         ]
 
-#         corrections = []
-#         for future in as_completed(futures):
-#             result = future.result()
-#             if result is not None:           # only keep successful improvements
-#                 corrections.append(result)
+#         results = []
+#         for f in as_completed(futures):
+#             out = f.result()
+#             if out is not None:
+#                 results.append(out)
 
-#     return corrections
+#     return results
+
+
+def simulate_corrections(
+    env,
+    trajectories,
+    *,
+    num_random_trajs=100,
+    max_workers=8,
+    rng: np.random.Generator,
+) -> List[Tuple[list, list]]:   # List[(improved_traj, original_traj)]
+    """
+    For each input trajectory, try to find a better one from the same start state.
+    Returns only the pairs where an improvement was actually found.
+    """
+    if not trajectories:
+        return []
+
+    seeds = [int(rng.integers(0, 2**32 - 1)) for _ in range(len(trajectories))]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        # Submit all improvement searches in parallel
+        futures = [
+            ex.submit(_simulate_correction_one, env, traj, num_random_trajs, seed)
+            for traj, seed in zip(trajectories, seeds)
+        ]
+
+        corrections = []
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:           # only keep successful improvements
+                corrections.append(result)
+
+    return corrections
 
 # ============================================================
 # 6. Pairwise (reproducible, no quadratic blowup)
@@ -744,7 +744,7 @@ class GenerationSpec:
     base_max_horizon: int = 150
     base_threads: int = 8
     # improvement internals
-    n_random_for_improvement: int = 10
+    n_random_for_improvement: int = 300
     # estop
     estop_beta: float = 10.0
 
@@ -816,35 +816,35 @@ def _generate_candidates_for_one_env(args):
             )
             C.extend(estops_to_atoms(env_idx, estops))
     # ---------------- improvement ----------------
-    # if do_improvement and spec.improvement.enabled and imp_budget > 0 and base_trajs:
-    #     k = min(int(imp_budget), len(base_trajs))
-    #     if k > 0:
-    #         idx = rng.choice(len(base_trajs), size=k, replace=False)
-    #         imp_trajs = [base_trajs[int(i)] for i in idx]
-    #         imps = simulate_corrections(
-    #             env,
-    #             imp_trajs,
-    #             num_random_trajs=spec.n_random_for_improvement,
-    #             max_workers=spec.base_threads,
-    #             rng=rng,
-    #         )
-    #         C.extend(corrections_to_atoms(env_idx, imps))
     if do_improvement and spec.improvement.enabled and imp_budget > 0 and base_trajs:
-
         k = min(int(imp_budget), len(base_trajs))
         if k > 0:
             idx = rng.choice(len(base_trajs), size=k, replace=False)
             imp_trajs = [base_trajs[int(i)] for i in idx]
-
             imps = simulate_corrections(
                 env,
-                qv,   # <-- pass Q values
                 imp_trajs,
+                num_random_trajs=spec.n_random_for_improvement,
                 max_workers=spec.base_threads,
                 rng=rng,
             )
-
             C.extend(corrections_to_atoms(env_idx, imps))
+    # if do_improvement and spec.improvement.enabled and imp_budget > 0 and base_trajs:
+
+    #     k = min(int(imp_budget), len(base_trajs))
+    #     if k > 0:
+    #         idx = rng.choice(len(base_trajs), size=k, replace=False)
+    #         imp_trajs = [base_trajs[int(i)] for i in idx]
+
+    #         imps = simulate_corrections(
+    #             env,
+    #             qv,   # <-- pass Q values
+    #             imp_trajs,
+    #             max_workers=spec.base_threads,
+    #             rng=rng,
+    #         )
+
+    #         C.extend(corrections_to_atoms(env_idx, imps))
 
     return env_idx, C
 

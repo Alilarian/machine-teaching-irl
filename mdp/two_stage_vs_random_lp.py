@@ -665,7 +665,7 @@ def run_experiment(
 
         spec = GenerationSpec(
             seed=spec_seed,
-            base_max_horizon=50,
+            base_max_horizon=150,
             demo=DemoSpec(
                 enabled=demo_enabled,
                 env_fraction=1.0,
