@@ -1,0 +1,72 @@
+{
+  "methods": {
+    "two_stage_cached": {
+      "regret": [
+        0.011650772122356656,
+        0.000973952053535676,
+        0.061903425552651825,
+        0.0325007826774959,
+        0.02876014448112585
+      ],
+      "mean_regret": 0.02715781537743318,
+      "selection_stats": {
+        "num_atoms_selected": 4,
+        "num_envs_used": 3,
+        "used_envs": [
+          2,
+          3,
+          4
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 4,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "regret": [
+        [
+          0.08863993156796468,
+          0.11424034456932297,
+          0.27356572347108443,
+          0.0905277458522642,
+          0.12533376910463723
+        ]
+      ],
+      "mean_regret": 0.1384615029130547,
+      "selection_stats": {
+        "mdp_counts": [
+          3
+        ],
+        "mean_mdp_count": 3.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          3
+        ],
+        "coverages": [
+          0.0
+        ],
+        "mean_unique_constraints": 3.0,
+        "mean_coverage": 0.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_union_unique": 4
+  },
+  "config": {
+    "seed": 13337,
+    "n_envs": 5,
+    "mdp_size": 6,
+    "feature_dim": 4,
+    "feedback": [
+      "improvement"
+    ],
+    "demo_env_fraction": 0.0,
+    "total_budget": 5000,
+    "random_trials": 1,
+    "feedback_generations": 10,
+    "lp_epsilon": 1e-06
+  }
+}

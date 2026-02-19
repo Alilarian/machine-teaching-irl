@@ -428,26 +428,64 @@ def derive_constraints_from_q_family(
 
     return U_per_mdp, U_global
 
+# def recover_constraints_and_coverage(
+#     chosen_atoms,
+#     SFs,
+#     envs,
+#     U_universal,
+# ):
+#     """
+#     Returns:
+#       - n_unique_constraints
+#       - coverage_fraction
+#     """
+#     if len(chosen_atoms) == 0:
+#         return 0, 0.0
+    
+#     num_envs = len(envs)
+#     atoms_per_env = [[] for _ in range(num_envs)]
+
+#     for env_idx, atom in chosen_atoms:
+#         if env_idx < 0 or env_idx >= num_envs:
+#             raise ValueError(f"Invalid env_idx={env_idx} in atoms_flat.")
+#         atoms_per_env[env_idx].append(atom)
+
+#     _, U_chosen = derive_constraints_from_atoms(
+#         atoms_per_env,
+#         SFs,
+#         envs,
+#     )
+
+#     if U_chosen is None or len(U_chosen) == 0:
+#         return 0, 0.0
+
+#     U_chosen_unique = remove_redundant_constraints(U_chosen)
+
+#     # union test for coverage
+#     union = remove_redundant_constraints(
+#         np.vstack([U_universal, U_chosen_unique])
+#     )
+
+#     n_unique = len(U_chosen_unique)
+#     coverage = n_unique / len(U_universal)
+
+#     return n_unique, coverage
+
 def recover_constraints_and_coverage(
     chosen_atoms,
     SFs,
     envs,
     U_universal,
 ):
-    """
-    Returns:
-      - n_unique_constraints
-      - coverage_fraction
-    """
     if len(chosen_atoms) == 0:
         return 0, 0.0
-    
+
     num_envs = len(envs)
     atoms_per_env = [[] for _ in range(num_envs)]
 
     for env_idx, atom in chosen_atoms:
         if env_idx < 0 or env_idx >= num_envs:
-            raise ValueError(f"Invalid env_idx={env_idx} in atoms_flat.")
+            raise ValueError(f"Invalid env_idx={env_idx}")
         atoms_per_env[env_idx].append(atom)
 
     _, U_chosen = derive_constraints_from_atoms(
@@ -461,13 +499,34 @@ def recover_constraints_and_coverage(
 
     U_chosen_unique = remove_redundant_constraints(U_chosen)
 
-    # union test for coverage
-    union = remove_redundant_constraints(
-        np.vstack([U_universal, U_chosen_unique])
-    )
+    # ---- compute intersection properly ----
+    tol = 1e-6
+
+    def normalize(v):
+        v = np.asarray(v, dtype=float)
+        n = np.linalg.norm(v)
+        if n < 1e-12:
+            return None
+        v = v / n
+        if v[0] < 0:
+            v = -v
+        return v
+
+    U_univ_norm = [normalize(u) for u in U_universal]
+    U_chosen_norm = [normalize(u) for u in U_chosen_unique]
+
+    intersection = 0
+    for u in U_chosen_norm:
+        if u is None:
+            continue
+        for v in U_univ_norm:
+            if v is None:
+                continue
+            if np.linalg.norm(u - v) < tol:
+                intersection += 1
+                break
 
     n_unique = len(U_chosen_unique)
-    coverage = n_unique / len(U_universal)
+    coverage = intersection / len(U_universal)
 
     return n_unique, coverage
-

@@ -476,7 +476,7 @@ def generate_q_optimal_trajectories(
 #     else:
 #         return None
 
-def _simulate_structured_correction_one(
+def _simulate_correction_one(
     env,
     q_values,
     traj,
@@ -533,7 +533,7 @@ def _simulate_structured_correction_one(
     # If shorter (hit terminal early), pad nothing — shorter is fine
     return (corrected, traj)
 
-def simulate_structured_corrections(
+def simulate_corrections(
     env,
     q_values,
     trajectories,
@@ -553,7 +553,7 @@ def simulate_structured_corrections(
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = [
             ex.submit(
-                _simulate_structured_correction_one,
+                _simulate_correction_one,
                 env,
                 q_values,
                 traj,
@@ -836,7 +836,7 @@ def _generate_candidates_for_one_env(args):
             idx = rng.choice(len(base_trajs), size=k, replace=False)
             imp_trajs = [base_trajs[int(i)] for i in idx]
 
-            imps = simulate_structured_corrections(
+            imps = simulate_corrections(
                 env,
                 qv,   # <-- pass Q values
                 imp_trajs,
