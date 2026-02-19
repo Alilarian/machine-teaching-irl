@@ -716,6 +716,7 @@ def run_experiment(
     best_coverage = None
     best_used_envs = None
     best_candidates_per_env = None
+    best_U_universal = None
 
     for gen in range(feedback_generations):
         print(f"\nGeneration {gen+1}/{feedback_generations}")
@@ -791,6 +792,7 @@ def run_experiment(
             best_coverage = cov
             best_used_envs = used_envs
             best_candidates_per_env = candidates_per_env
+            best_U_universal = U_universal
 
     print(f"\nBest generation selected (mean regret: {best_mean_regret:.4f})")
 
@@ -802,7 +804,7 @@ def run_experiment(
         seed=seed,
         trials=random_trials,
         SFs=SFs,
-        U_universal=U_universal,
+        U_universal=best_U_universal,
     )
     reg_rand = rand_out["regrets"]
 
