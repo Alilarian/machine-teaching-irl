@@ -494,7 +494,6 @@ def main(args):
         },
     }
 
-
     os.makedirs(args.result_dir, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     path = os.path.join(args.result_dir, f"minigrid_lp_run_{timestamp}.json")

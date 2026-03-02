@@ -11,7 +11,7 @@ if module_path not in sys.path:
 #from __future__ import annotations
 import numpy as np
 
-from .minigrid_lava_generator import rollout_random_trajectory, enumerate_states
+from .minigrid_lava_generator_main import rollout_random_trajectory, enumerate_states
 
 from scipy.special import logsumexp
 

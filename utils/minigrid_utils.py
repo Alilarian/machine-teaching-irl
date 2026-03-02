@@ -11,7 +11,7 @@ if module_path not in sys.path:
 #from __future__ import annotations
 import numpy as np
 
-from .minigrid_lava_generator import rollout_random_trajectory, enumerate_states
+from .minigrid_lava_generator_main import rollout_random_trajectory, enumerate_states
 
 from scipy.special import logsumexp
 from collections import defaultdict
@@ -554,8 +554,6 @@ def constraints_from_demo_atom_next_state(
 
     return out
 
-
-
 def trajectory_expected_features(
     traj,
     mdp,
@@ -694,9 +692,6 @@ def constraints_from_single_atom(
 
     raise ValueError(f"Unknown atom_type: {t}")
 
-from multiprocessing import Pool, cpu_count
-
-
 def _constraints_from_atoms_env_per_atom_worker(args):
     """
     Worker: extract constraints PER ATOM for ONE environment.
@@ -827,11 +822,6 @@ def constraints_from_atoms_multi_env(
 
 ################################# regret computation
 
-import numpy as np
-
-# ------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------
 def _as_action_list(policy, S, idx_of=None, default_action=0):
     """
     Convert policy into an action list of length S.
@@ -862,7 +852,6 @@ def _as_action_list(policy, S, idx_of=None, default_action=0):
         if 0 <= s < S:
             pi[s] = int(a)
     return pi
-
 
 def policy_evaluation_next_state_stochastic(
     mdp,
@@ -919,7 +908,6 @@ def policy_evaluation_next_state_stochastic(
 
     return V
 
-
 def policy_evaluation_next_state_uniform_random(
     mdp,
     theta,
@@ -940,7 +928,6 @@ def policy_evaluation_next_state_uniform_random(
         mdp=mdp, theta=theta, Pi=Pi, gamma=gamma, tol=tol, max_iters=max_iters
     )
 
-
 def mean_state_value(V, terminal_mask=None, include_terminal=False):
     """
     Consistent "np.mean(V)" but with an option to ignore terminals,
@@ -953,7 +940,6 @@ def mean_state_value(V, terminal_mask=None, include_terminal=False):
     if not np.any(keep):
         return 0.0
     return float(np.mean(V[keep]))
-
 
 # ------------------------------------------------------------
 # Expected Value Difference (single env)
@@ -1022,7 +1008,6 @@ def expected_value_difference_next_state(
 
     return diff / denom
 
-
 # ------------------------------------------------------------
 # Multi-env wrapper (no extra multiprocessing needed)
 # ------------------------------------------------------------
@@ -1056,36 +1041,6 @@ def expected_value_difference_next_state_multi(
             )
         )
     return out
-
-
-
-# def trajectory_expected_features(
-#     traj,
-#     mdp,
-# ):
-#     """
-#     Compute discounted feature count:
-
-#         Φ(τ) = Σ γ^t φ(s_{t+1})
-
-#     Uses mdp["Phi"] and mdp["idx_of"] directly.
-#     """
-
-#     Phi = mdp["Phi"]          # (S, D)
-#     idx_of = mdp["idx_of"]
-#     gamma = mdp["gamma"]
-
-#     D = Phi.shape[1]
-#     phi_sum = np.zeros(D, dtype=float)
-
-#     g = 1.0
-
-#     for (_, _, sp) in traj:
-#         s_idx = idx_of[sp]
-#         phi_sum += g * Phi[s_idx]
-#         g *= gamma
-
-#     return phi_sum
 
 def constraints_from_pairwise_preferences(
     pairwise_prefs,
@@ -1198,7 +1153,6 @@ def constraints_from_single_atom(
     raise ValueError(f"Unknown atom_type: {t}")
 
 from multiprocessing import Pool, cpu_count
-
 
 def _constraints_from_atoms_env_per_atom_worker(args):
     """
