@@ -871,6 +871,7 @@ def run_experiment(
         json.dump(results, f, indent=2)
     print(f"\nSaved to {out_path}")
     print("\n================= EXPERIMENT END =================\n")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Two-Stage SCOT vs Random baseline with cached constraints (no Stage-2 recomputation)",
