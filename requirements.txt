@@ -49,3 +49,4 @@ tqdm==4.67.1
 traitlets==5.14.3
 typing_extensions==4.15.0
 wcwidth==0.2.14
+pulp==3.3.0
