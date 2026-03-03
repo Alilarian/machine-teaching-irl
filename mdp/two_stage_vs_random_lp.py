@@ -195,7 +195,7 @@ def run_experiment(
         w_mode="fixed",
         W_fixed=W_TRUE,
         seed=seed,
-        feature_keep_range=(2,feature_dim),   # ← controls sparsity
+        #feature_keep_range=(2,feature_dim),   # ← controls sparsity
         GridEnvClass=GridWorldMDPFromLayoutEnv,
     )
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)

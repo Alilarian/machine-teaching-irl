@@ -28,7 +28,7 @@ from utils.feedback_budgeting_minigrid import (
     DemoSpec_minigrid,
     FeedbackSpec_minigrid,
 )
-from utils.minigrid_lava_generator import generate_lavaworld, enumerate_states
+from utils.minigrid_lava_generator_main import generate_lavaworld, enumerate_states
 from utils import (
     value_iteration_next_state_multi,
     compute_successor_features_multi,

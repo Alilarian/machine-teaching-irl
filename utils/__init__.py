@@ -25,7 +25,7 @@ from .feedback_budgeting import (
     GenerationSpec, DemoSpec, FeedbackSpec
 )
 
-from .minigrid_lava_generator_main import *
+from .minigrid_lava_generator import *
 
 from .minigrid_utils import *
 
