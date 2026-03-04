@@ -1,0 +1,103 @@
+{
+  "methods": {
+    "two_stage_cached": {
+      "train": {
+        "regret": [
+          88.70686529755355,
+          88.27683265336728,
+          88.06967375510158,
+          88.89478845766523,
+          88.71036438617291,
+          88.78558554035725,
+          88.79734333128411,
+          88.90687482546784
+        ],
+        "mean_regret": 88.64354103087122
+      },
+      "heldout": {
+        "regret": [
+          88.73488347627831,
+          87.10597508430503
+        ],
+        "mean_regret": 87.92042928029167
+      },
+      "selection_stats": {
+        "num_atoms_selected": 4,
+        "num_envs_used": 4,
+        "used_envs": [
+          0,
+          1,
+          3,
+          4
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 4,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "train": {
+        "regret": [
+          [
+            24.265285961435154,
+            29.637866016435925,
+            33.03163476518162,
+            21.96506233289341,
+            19.24728872236731,
+            20.9223790951488,
+            36.23961189052495,
+            14.037637393647309
+          ]
+        ],
+        "mean_regret": 24.91834577220431
+      },
+      "heldout": {
+        "regret": [
+          [
+            33.44428994383567,
+            46.118026269327245
+          ]
+        ],
+        "mean_regret": 39.78115810658146
+      },
+      "selection_stats": {
+        "mdp_counts": [
+          4
+        ],
+        "mean_mdp_count": 4.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          4
+        ],
+        "coverages": [
+          0.0
+        ],
+        "mean_unique_constraints": 4.0,
+        "mean_coverage": 0.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_union_unique": 4
+  },
+  "config": {
+    "seed": 13337,
+    "n_envs": 10,
+    "mdp_size": 6,
+    "feature_dim": 4,
+    "feedback": [
+      "demo",
+      "improvement"
+    ],
+    "demo_env_fraction": 1.0,
+    "total_budget": 20000,
+    "random_trials": 1,
+    "feedback_generations": 1,
+    "lp_epsilon": 1e-06,
+    "heldout_frac": 0.2,
+    "n_train": 8,
+    "n_heldout": 2
+  }
+}

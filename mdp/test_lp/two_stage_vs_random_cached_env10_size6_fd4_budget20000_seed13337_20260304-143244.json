@@ -1,0 +1,104 @@
+{
+  "methods": {
+    "two_stage_cached": {
+      "train": {
+        "regret": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "mean_regret": 0.0
+      },
+      "heldout": {
+        "regret": [
+          0.0,
+          0.0
+        ],
+        "mean_regret": 0.0
+      },
+      "selection_stats": {
+        "num_atoms_selected": 8,
+        "num_envs_used": 5,
+        "used_envs": [
+          0,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 8,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "train": {
+        "regret": [
+          [
+            16.811331715557394,
+            28.001442371080916,
+            20.203929225845094,
+            24.024305580004764,
+            16.24609204870456,
+            25.47317987934053,
+            21.001240844363625,
+            15.2633273845633
+          ]
+        ],
+        "mean_regret": 20.878106131182523
+      },
+      "heldout": {
+        "regret": [
+          [
+            39.832879961770004,
+            38.85562311658102
+          ]
+        ],
+        "mean_regret": 39.34425153917552
+      },
+      "selection_stats": {
+        "mdp_counts": [
+          5
+        ],
+        "mean_mdp_count": 5.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          5
+        ],
+        "coverages": [
+          0.0
+        ],
+        "mean_unique_constraints": 5.0,
+        "mean_coverage": 0.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_union_unique": 8
+  },
+  "config": {
+    "seed": 13337,
+    "n_envs": 10,
+    "mdp_size": 6,
+    "feature_dim": 4,
+    "feedback": [
+      "demo",
+      "pairwise"
+    ],
+    "demo_env_fraction": 1.0,
+    "total_budget": 20000,
+    "random_trials": 1,
+    "feedback_generations": 1,
+    "lp_epsilon": 1e-06,
+    "heldout_frac": 0.2,
+    "n_train": 8,
+    "n_heldout": 2
+  }
+}

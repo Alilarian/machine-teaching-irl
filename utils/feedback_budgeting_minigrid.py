@@ -788,7 +788,6 @@ def generate_feedback_candidate_atoms(
 
     return subsample_atoms(atoms_per_env, spec, rng)
 
-
 def generate_candidate_atoms_for_scot_minigrid(
     mdps,
     pi_list,

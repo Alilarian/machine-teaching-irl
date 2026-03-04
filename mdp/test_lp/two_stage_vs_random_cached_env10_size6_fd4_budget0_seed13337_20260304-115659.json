@@ -1,0 +1,102 @@
+{
+  "methods": {
+    "two_stage_cached": {
+      "train": {
+        "regret": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "mean_regret": 0.0
+      },
+      "heldout": {
+        "regret": [
+          0.0,
+          0.0
+        ],
+        "mean_regret": 0.0
+      },
+      "selection_stats": {
+        "num_atoms_selected": 5,
+        "num_envs_used": 4,
+        "used_envs": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 5,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "train": {
+        "regret": [
+          [
+            0.08863993156796468,
+            0.27356572347108443,
+            0.0905277458522642,
+            0.12533376910463723,
+            0.053292498584498915,
+            0.041487502827106226,
+            0.3895172661524784,
+            0.06780705157624034
+          ]
+        ],
+        "mean_regret": 0.1412714361420343
+      },
+      "heldout": {
+        "regret": [
+          [
+            0.11424034456932297,
+            0.11222985836371935
+          ]
+        ],
+        "mean_regret": 0.11323510146652116
+      },
+      "selection_stats": {
+        "mdp_counts": [
+          5
+        ],
+        "mean_mdp_count": 5.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          3
+        ],
+        "coverages": [
+          0.0
+        ],
+        "mean_unique_constraints": 3.0,
+        "mean_coverage": 0.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_union_unique": 5
+  },
+  "config": {
+    "seed": 13337,
+    "n_envs": 10,
+    "mdp_size": 6,
+    "feature_dim": 4,
+    "feedback": [
+      "demo"
+    ],
+    "demo_env_fraction": 1.0,
+    "total_budget": 0,
+    "random_trials": 1,
+    "feedback_generations": 1,
+    "lp_epsilon": 1e-06,
+    "heldout_frac": 0.2,
+    "n_train": 8,
+    "n_heldout": 2
+  }
+}

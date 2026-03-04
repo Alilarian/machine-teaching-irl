@@ -56,7 +56,7 @@ from .derive_constraints import (
         derive_constraints_from_atoms,
         atom_to_constraints,
         recover_constraints_and_coverage
-    # you'll add derive_constraints_from_atoms soon
+
 )
 
 # LP redundancy tests

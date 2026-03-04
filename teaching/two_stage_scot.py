@@ -299,7 +299,7 @@
 #     }
 
 import numpy as np
-from utils import atom_to_constraints
+from utils import atom_to_constraints, remove_redundant_constraints
 
 
 # ============================================================
@@ -325,10 +325,11 @@ def make_key_for(*, normalize=True, round_decimals=12):
         # This can be mathematically wrong for halfspace constraints.
         # I'm leaving it as-is because you asked to solve the Stage-2 recomputation bug.
         # If you want the next fix, remove this sign collapse.
-        if vv[0] < 0:
-            vv = -vv
-
+        # if vv[0] < 0:
+        #     vv = -vv
         return tuple(np.round(vv, round_decimals))
+
+        #eturn tuple(np.round(vv, round_decimals))
 
     return key_for
 
@@ -367,31 +368,99 @@ def build_universal_key_index(
 # 3️⃣ Build Atom Constraint Cache (THE FIX)
 # ============================================================
 
+# def build_atom_constraint_cache(candidates_per_env, SFs, envs):
+#     """
+#     Precompute constraints per atom ONCE and reuse everywhere.
+
+#     Returns:
+#         atom_constraints_per_env[env_idx][atom_idx] -> list of constraint vectors
+#         U_all -> flat list of all constraint vectors
+#     """
+#     atom_constraints_per_env = []
+#     U_all = []
+
+#     for env_idx, (atoms, sf, env) in enumerate(zip(candidates_per_env, SFs, envs)):
+#         mu_sa = sf[0]  # keep same convention you already use
+#         env_atom_constraints = []
+
+#         for atom in atoms:
+#             constraints = atom_to_constraints(atom, mu_sa, env)
+#             constraints = [np.asarray(v, dtype=float) for v in constraints]
+#             env_atom_constraints.append(constraints)
+#             U_all.extend(constraints)
+
+#         atom_constraints_per_env.append(env_atom_constraints)
+
+#     return atom_constraints_per_env, U_all
+
 def build_atom_constraint_cache(candidates_per_env, SFs, envs):
     """
     Precompute constraints per atom ONCE and reuse everywhere.
 
-    Returns:
-        atom_constraints_per_env[env_idx][atom_idx] -> list of constraint vectors
-        U_all -> flat list of all constraint vectors
+    Additionally:
+    - Separate constraints by feedback type
+    - Remove redundancy inside each type
+    - Then stack them
+
+    Returns
+    -------
+    atom_constraints_per_env :
+        env_idx → atom_idx → constraint list
+
+    U_all :
+        stacked constraints after per-type redundancy removal
     """
+
     atom_constraints_per_env = []
-    U_all = []
+
+    # store constraints per type
+    group_constraints = {
+        "demo": [],
+        "pairwise": [],
+        "estop": [],
+        "improvement": [],
+    }
 
     for env_idx, (atoms, sf, env) in enumerate(zip(candidates_per_env, SFs, envs)):
-        mu_sa = sf[0]  # keep same convention you already use
+
+        mu_sa = sf[0]
         env_atom_constraints = []
 
         for atom in atoms:
+
             constraints = atom_to_constraints(atom, mu_sa, env)
             constraints = [np.asarray(v, dtype=float) for v in constraints]
+
             env_atom_constraints.append(constraints)
-            U_all.extend(constraints)
+
+            # collect by feedback type
+            if atom.feedback_type in group_constraints:
+                group_constraints[atom.feedback_type].extend(constraints)
+            else:
+                group_constraints.setdefault(atom.feedback_type, []).extend(constraints)
 
         atom_constraints_per_env.append(env_atom_constraints)
 
-    return atom_constraints_per_env, U_all
+    # ------------------------------------------------
+    # Remove redundancy PER GROUP
+    # ------------------------------------------------
 
+    U_all = []
+
+    for group_name, constraints in group_constraints.items():
+
+        if len(constraints) == 0:
+            continue
+
+        constraints = np.asarray(constraints)
+
+        cleaned = remove_redundant_constraints(constraints)
+
+        print(f"[cache] {group_name} constraints: {len(constraints)} → {len(cleaned)}")
+
+        U_all.extend(cleaned)
+
+    return atom_constraints_per_env, U_all
 
 # ============================================================
 # 4️⃣ Stage-1: Build MDP Coverage from Atom Cache (KEY-BASED)

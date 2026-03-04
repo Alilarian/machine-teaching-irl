@@ -195,29 +195,56 @@ def _step_to_sa(step):
         return None, None
     return int(step[0]), int(step[1])
 
-def _discounted_feat_sum(env, traj, gamma=1.0):
-    """
-    Computes sum_t gamma^t * phi(s_t) using env.state_features.
-    Traj elements can be (s,a) or (s,a,s_next).
-    Uses state at time t (the 's' in each step), consistent with your original code.
-    """
-    if traj is None or len(traj) == 0:
-        return None
+# def _discounted_feat_sum(env, traj, gamma=0.99):
+#     """
+#     Computes sum_t gamma^t * phi(s_t) using env.state_features.
+#     Traj elements can be (s,a) or (s,a,s_next).
+#     Uses state at time t (the 's' in each step), consistent with your original code.
+#     """
+#     if traj is None or len(traj) == 0:
+#         return None
 
-    states = []
+#     states = []
+#     for step in traj:
+#         s, _ = _step_to_sa(step)
+#         if s is None:
+#             continue
+#         states.append(s)
+
+#     if len(states) == 0:
+#         return None
+
+#     discounts = np.power(gamma, np.arange(len(states), dtype=float))
+#     feats = env.state_features[states] * discounts[:, None]
+#     feats = env.grid
+#     return feats.sum(axis=0)
+
+def _discounted_feat_sum(env, traj, gamma):
+    """
+    ENTERING convention:
+    sum_t gamma^t * phi(s_{t+1})
+    """
+
+    d = env.num_features
+    feat_sum = np.zeros(d)
+
+    g = 1.0
+
     for step in traj:
-        s, _ = _step_to_sa(step)
-        if s is None:
-            continue
-        states.append(s)
 
-    if len(states) == 0:
-        return None
+        if len(step) == 3:
+            s, a, s_next = step
+        elif len(step) == 2:
+            s, a = step
+            raise ValueError("Entering convention requires next-state in trajectory")
+        else:
+            raise ValueError("Invalid step format")
 
-    discounts = np.power(gamma, np.arange(len(states), dtype=float))
-    feats = env.state_features[states] * discounts[:, None]
-    return feats.sum(axis=0)
+        feat_sum += g * env.state_features[s_next]
 
+        g *= gamma
+
+    return feat_sum
 
 # ============================================================
 # 3. Demo Constraints (FIXED: supports (s,a,s'))
@@ -260,7 +287,7 @@ def constraints_from_demo(traj, mu_sa, env=None, normalize=True, tol=1e-12):
 # 4. Pairwise, E-stop, Improvement Constraints (FIXED)
 # ============================================================
 
-def constraints_from_pairwise(atom_data, env, gamma=1.0):
+def constraints_from_pairwise(atom_data, env, gamma=0.99):
     preferred, other = atom_data
 
     pref_feats = _discounted_feat_sum(env, preferred, gamma)
@@ -276,7 +303,7 @@ def constraints_from_pairwise(atom_data, env, gamma=1.0):
     return [diff / norm]
 
 
-def constraints_from_estop(atom_data, env, gamma=1.0):
+def constraints_from_estop(atom_data, env, gamma=0.99):
     traj, t_stop = atom_data
     if traj is None or len(traj) == 0:
         return []
@@ -301,7 +328,7 @@ def constraints_from_estop(atom_data, env, gamma=1.0):
     return [diff / norm]
 
 
-def constraints_from_improvement(atom_data, env, gamma=1.0):
+def constraints_from_improvement(atom_data, env, gamma=0.99):
     improved, original = atom_data
 
     imp_feats = _discounted_feat_sum(env, improved, gamma)

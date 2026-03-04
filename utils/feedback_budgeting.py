@@ -1195,7 +1195,7 @@ def trajectory_return(env, traj, gamma):
         r = env.compute_reward(s_next)
 
         ret += g * r
-        g *= gamma
+        g *= 0.99
 
     return ret
 
@@ -1351,7 +1351,6 @@ def atoms_from_trajs(env_idx, trajs, type_name):
 
     return [Atom(env_idx, type_name, t) for t in trajs]
 
-
 # ============================================================
 # Spec
 # ============================================================
@@ -1360,7 +1359,6 @@ def atoms_from_trajs(env_idx, trajs, type_name):
 class FeedbackGenerationSpec:
 
     seed: int = 0
-
     trajs_per_state: int = 100
     max_horizon: int = 100
 

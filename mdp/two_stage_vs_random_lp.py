@@ -94,7 +94,7 @@ def lp_atomic_to_Q_lists(
                 prob += abs_w[j] >= -w_vars[j]
             prob += pulp.lpSum(abs_w) == 1
             margins = [pulp.lpSum(U[i, j] * w_vars[j] for j in range(d)) for i in range(n)]
-            prob += pulp.lpSum(margins)
+            prob += pulp.lpSum(margins) / n
             for m in margins:
                 prob += m >= epsilon
             status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
@@ -201,7 +201,7 @@ def run_experiment(
     )
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)
     SFs = compute_successor_features_family(
-        envs, Q_list, convention="entering", zero_terminal_features=True,
+        envs, Q_list, convention="on", zero_terminal_features=True,
     )
     # Split into train and held-out
     rng = np.random.default_rng(seed)
@@ -248,7 +248,7 @@ def run_experiment(
 
             seed=spec_seed,
 
-            trajs_per_state=200,
+            trajs_per_state=500,
             max_horizon=150,
      
 
@@ -263,7 +263,6 @@ def run_experiment(
         
         )    
             
-        
         # spec = GenerationSpec(
         #     seed=spec_seed,
         #     base_max_horizon=150,
@@ -299,13 +298,14 @@ def run_experiment(
             spec=spec
         )
         print(f"Atoms per env: mean={np.mean([len(a) for a in candidates_per_env]):.1f}, total={sum(len(a) for a in candidates_per_env)}")
-        # =========================
-        # ✅ FIX: Build cache ONCE
-        # =========================
+
         atom_constraints_per_env, U_atoms = build_atom_constraint_cache(
             candidates_per_env, train_SFs, train_envs
         )
+        
         U_universal = remove_redundant_constraints(U_atoms)
+        #U_universal = U_atoms
+        
         print(f"|U_atoms| raw = {0 if U_atoms is None else len(U_atoms)}")
         print(f"|U_universal| = {len(U_universal)}")
         out = two_stage_scot_cached(

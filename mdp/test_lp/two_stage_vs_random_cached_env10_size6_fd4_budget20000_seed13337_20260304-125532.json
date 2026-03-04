@@ -1,0 +1,104 @@
+{
+  "methods": {
+    "two_stage_cached": {
+      "train": {
+        "regret": [
+          47.56029808953636,
+          56.79957027431936,
+          46.99984370306227,
+          38.17521542854468,
+          23.816967277871814,
+          25.55634057709687,
+          25.570842741342684,
+          15.83755525284283
+        ],
+        "mean_regret": 35.03957916807711
+      },
+      "heldout": {
+        "regret": [
+          58.22684173963452,
+          45.42734322677715
+        ],
+        "mean_regret": 51.82709248320583
+      },
+      "selection_stats": {
+        "num_atoms_selected": 8,
+        "num_envs_used": 5,
+        "used_envs": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 5,
+        "coverage": 0.5
+      }
+    },
+    "random": {
+      "train": {
+        "regret": [
+          [
+            34.49189613020517,
+            76.74113611591655,
+            64.5585801199473,
+            24.215331214486913,
+            38.27748381037904,
+            30.702855727003943,
+            49.75695496460029,
+            35.752235400903366
+          ]
+        ],
+        "mean_regret": 44.312059185430314
+      },
+      "heldout": {
+        "regret": [
+          [
+            31.833269515602552,
+            81.95786692120342
+          ]
+        ],
+        "mean_regret": 56.895568218402985
+      },
+      "selection_stats": {
+        "mdp_counts": [
+          5
+        ],
+        "mean_mdp_count": 5.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          6
+        ],
+        "coverages": [
+          0.0
+        ],
+        "mean_unique_constraints": 6.0,
+        "mean_coverage": 0.0
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_union_unique": 8
+  },
+  "config": {
+    "seed": 13337,
+    "n_envs": 10,
+    "mdp_size": 6,
+    "feature_dim": 4,
+    "feedback": [
+      "demo",
+      "improvement"
+    ],
+    "demo_env_fraction": 1.0,
+    "total_budget": 20000,
+    "random_trials": 1,
+    "feedback_generations": 1,
+    "lp_epsilon": 1e-06,
+    "heldout_frac": 0.2,
+    "n_train": 8,
+    "n_heldout": 2
+  }
+}
