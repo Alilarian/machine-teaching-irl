@@ -23,13 +23,13 @@ from utils import (
     remove_redundant_constraints,
     parallel_value_iteration,
     recover_constraints_and_coverage,
-    GenerationSpec,
-    DemoSpec,
-    FeedbackSpec,
+    #GenerationSpec,
+    #DemoSpec,
+    #FeedbackSpec,
 )
 from utils.successor_features import max_q_sa_pairs
 from utils.common_helper import calculate_expected_value_difference
-from utils.feedback_budgeting import generate_candidate_atoms_for_scot
+from utils.feedback_budgeting import generate_candidate_atoms_for_scot, FeedbackGenerationSpec
 from gridworld_env_layout import GridWorldMDPFromLayoutEnv
 # NEW: cached two-stage
 from teaching.two_stage_scot import (
@@ -177,6 +177,7 @@ def run_experiment(
     feedback_generations=1,
     lp_epsilon=1e-3,
     heldout_frac=0.0,
+    demo_count=1800
 ):
     os.makedirs(result_dir, exist_ok=True)
     print("\n================= EXPERIMENT START =================\n")
@@ -242,35 +243,61 @@ def run_experiment(
     for gen in range(feedback_generations):
         print(f"\nGeneration {gen+1}/{feedback_generations}")
         spec_seed = seed + gen if feedback_generations > 1 else seed
-        spec = GenerationSpec(
+        
+        spec = FeedbackGenerationSpec(
+
             seed=spec_seed,
-            base_max_horizon=150,
-            demo=DemoSpec(
-                enabled=demo_enabled,
-                env_fraction=1.0,
-                max_steps=1,
-                state_fraction=demo_env_fraction,
-            ),
-            pairwise=FeedbackSpec(
-                enabled=("pairwise" in non_demo_types),
-                total_budget=total_budget if "pairwise" in non_demo_types else 0,
-                alloc_method=alloc_method,
-                alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
-            ),
-            estop=FeedbackSpec(
-                enabled=("estop" in non_demo_types),
-                total_budget=total_budget if "estop" in non_demo_types else 0,
-                alloc_method=alloc_method,
-                alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
-            ),
-            improvement=FeedbackSpec(
-                enabled=("improvement" in non_demo_types),
-                total_budget=total_budget if "improvement" in non_demo_types else 0,
-                alloc_method=alloc_method,
-                alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
-            ),
+
+            trajs_per_state=200,
+            max_horizon=150,
+     
+
+            demo_count = demo_count,
+            demo_steps = 1,
+
+            pairwise_budget = total_budget if "pairwise" in non_demo_types else 0,
+            estop_budget = total_budget if "estop" in non_demo_types else 0,
+            improvement_budget = total_budget if "improvement" in non_demo_types else 0,
+
+            improvement_trials = 5,
+        
+        )    
+            
+        
+        # spec = GenerationSpec(
+        #     seed=spec_seed,
+        #     base_max_horizon=150,
+        #     demo=DemoSpec(
+        #         enabled=demo_enabled,
+        #         env_fraction=1.0,
+        #         max_steps=1,
+        #         state_fraction=demo_env_fraction,
+        #     ),
+        #     pairwise=FeedbackSpec(
+        #         enabled=("pairwise" in non_demo_types),
+        #         total_budget=total_budget if "pairwise" in non_demo_types else 0,
+        #         alloc_method=alloc_method,
+        #         alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
+        #     ),
+        #     estop=FeedbackSpec(
+        #         enabled=("estop" in non_demo_types),
+        #         total_budget=total_budget if "estop" in non_demo_types else 0,
+        #         alloc_method=alloc_method,
+        #         alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
+        #     ),
+        #     improvement=FeedbackSpec(
+        #         enabled=("improvement" in non_demo_types),
+        #         total_budget=total_budget if "improvement" in non_demo_types else 0,
+        #         alloc_method=alloc_method,
+        #         alloc_params=None if alloc_method == "uniform" else {"alpha": alloc},
+        #     ),
+        # )
+        #candidates_per_env = generate_candidate_atoms_for_scot(train_envs, train_Q_list, spec=spec)
+        candidates_per_env = generate_candidate_atoms_for_scot(
+            train_envs,
+            train_Q_list,
+            spec=spec
         )
-        candidates_per_env = generate_candidate_atoms_for_scot(train_envs, train_Q_list, spec=spec)
         print(f"Atoms per env: mean={np.mean([len(a) for a in candidates_per_env]):.1f}, total={sum(len(a) for a in candidates_per_env)}")
         # =========================
         # ✅ FIX: Build cache ONCE
@@ -431,7 +458,7 @@ if __name__ == "__main__":
                         choices=["uniform", "dirichlet"], help="Allocation method")
     parser.add_argument("--alloc", type=float, default=None,
                         help="Dirichlet alpha (if alloc_method=dirichlet)")
-    parser.add_argument("--feedback-generations", type=int, default=10,
+    parser.add_argument("--feedback-generations", type=int, default=1,
                         help="How many times to regenerate non-demo feedback")
     parser.add_argument("--lp-epsilon", type=float, default=1e-6,
                         help="Fixed margin ε for LP reward learning")
