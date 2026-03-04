@@ -794,8 +794,8 @@ def generate_candidate_atoms_for_scot_minigrid(
     pi_list,
     spec,
     enumerate_states,
-    n_trajs_per_state=200,
-    max_horizon=100,
+    n_trajs_per_state=500,
+    max_horizon=300,
 ):
     """
     Self-contained atom generation for SCOT in MiniGrid LavaWorlds.
