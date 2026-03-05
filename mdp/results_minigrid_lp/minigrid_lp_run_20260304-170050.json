@@ -1,0 +1,97 @@
+{
+  "methods": {
+    "two_stage": {
+      "regret": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean_regret": 0.0,
+      "heldout_regret": [
+        0.013161654259760569,
+        0.002852652285726398
+      ],
+      "mean_heldout_regret": 0.008007153272743484,
+      "selection_stats": {
+        "num_atoms_selected": 6,
+        "num_envs_used": 4,
+        "used_envs": [
+          2,
+          4,
+          1,
+          5
+        ]
+      },
+      "constraint_stats": {
+        "unique_constraints": 6,
+        "coverage": 1.0
+      }
+    },
+    "random": {
+      "regret": [
+        [
+          0.034724783544386795,
+          0.20971679231900642,
+          0.034299736682479987,
+          0.0,
+          0.27960417017748695,
+          0.08490786582812437,
+          0.19931973041315154,
+          0.3473379054040808
+        ]
+      ],
+      "mean_regret": 0.14873887304608963,
+      "heldout_regret": [
+        [
+          0.020669235657931884,
+          0.14885035382429312
+        ]
+      ],
+      "mean_heldout_regret": 0.0847597947411125,
+      "selection_stats": {
+        "mdp_counts": [
+          4
+        ],
+        "mean_mdp_count": 4.0
+      },
+      "constraint_stats": {
+        "constraint_counts": [
+          3
+        ],
+        "coverages": [
+          0.5
+        ],
+        "mean_unique_constraints": 3.0,
+        "mean_coverage": 0.5
+      }
+    }
+  },
+  "universal_constraints": {
+    "U_atoms_unique": 6,
+    "U_union_unique": 6
+  },
+  "config": {
+    "seed": 125,
+    "n_envs": 10,
+    "grid_size": 6,
+    "gamma": 0.99,
+    "feedback": [
+      "demo",
+      "improvement"
+    ],
+    "state_fraction": 1.0,
+    "total_budget": 10000,
+    "random_trials": 1,
+    "alloc_method": "uniform",
+    "alloc_alpha": null,
+    "lp": {
+      "epsilon": 1e-06
+    },
+    "heldout_frac": 0.2
+  }
+}

@@ -190,7 +190,6 @@ def lp_atomic_to_Q_and_wmap(mdps, atoms_flat, Psi_sa_list, args):
     return Q_list, w_sol
 
 
-
 def random_atom_trial(args_tuple):
     trial_id, mdps, atoms_per_env, k_atoms, args, enabled_feedback, Psi_sa_list, heldout_mdps = args_tuple
     rng = np.random.default_rng(args.seed + trial_id)
@@ -232,7 +231,6 @@ def main(args):
         seed=args.seed,
         gamma=args.gamma,
     )
-
 
     rng = np.random.default_rng(args.seed)
     n_envs = args.n_envs

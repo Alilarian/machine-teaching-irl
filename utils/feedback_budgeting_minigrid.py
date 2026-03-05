@@ -410,7 +410,7 @@ def simulate_correction_one(
     traj,
     mdp,
     theta_true,
-    num_random_trajs=10,
+    num_random_trajs=100,
     max_horizon=None,
 ):
     """
@@ -461,7 +461,7 @@ def generate_correction_feedback(
     trajectories,
     mdp,
     theta_true,
-    num_random_trajs=10,
+    num_random_trajs=100,
 ):
     """
     Generate correction (improvement) feedback:
@@ -546,7 +546,7 @@ def generate_feedback_multi(
     mdps,
     gamma=0.99,
     n_pairs=1000,
-    num_random_trajs=10,
+    num_random_trajs=100,
     estop_beta=10.0,
     n_jobs=None,
 ):
@@ -584,7 +584,7 @@ def generate_random_feedback_pipeline_multi(
     max_horizon=30,
     gamma=0.99,
     n_pairs=1000,
-    num_random_trajs=10,
+    num_random_trajs=100,
     estop_beta=10.0,
     n_jobs=None,
 ):
