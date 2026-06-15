@@ -2,13 +2,14 @@
 # GridWorld — single-modality LP experiments
 # 4 modalities x 10 seeds = 40 array tasks
 # task_id = seed_idx * 4 + modality_idx
-#SBATCH -M kingspeak
-#SBATCH --account=soc-kp
-#SBATCH --partition=soc-kp
+#
+# Usage:
+#   sbatch --account=<acct> --partition=<part> [-M <cluster>] [-t HH:MM:SS] run_grid_single_lp.sh
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH -c 16
 #SBATCH -t 16:00:00
+# Pass --account, --partition, and -M (cluster) via sbatch CLI or submit_all.sh
 
 #SBATCH --array=0-39
 #SBATCH -J grid_single_lp
