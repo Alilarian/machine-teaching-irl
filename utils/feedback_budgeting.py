@@ -1195,10 +1195,9 @@ def trajectory_return(env, traj, gamma):
         r = env.compute_reward(s_next)
 
         ret += g * r
-        g *= 0.99
+        g *= gamma
 
     return ret
-
 
 # ============================================================
 # Demonstrations
@@ -1261,10 +1260,69 @@ def generate_pairwise_preferences(env, trajectories, *, gamma, n_pairs, rng):
 
 
 # ============================================================
+# Pool index (group trajectories by start state)
+# ============================================================
+
+def build_pool_by_start(traj_pool):
+
+    pool_by_start = {}
+
+    for traj in traj_pool:
+
+        if len(traj) == 0:
+            continue
+
+        s0 = traj[0][0]
+
+        if s0 not in pool_by_start:
+            pool_by_start[s0] = []
+
+        pool_by_start[s0].append(traj)
+
+    return pool_by_start
+
+# ============================================================
 # Improvement search
 # ============================================================
 
-def simulate_correction(env, traj, num_trials, gamma, rng):
+# def simulate_correction(env, traj, num_trials, gamma, rng):
+
+#     start_state = traj[0][0]
+#     horizon = len(traj)
+
+#     original_return = trajectory_return(env, traj, gamma)
+
+#     best_traj = traj
+#     best_return = original_return
+
+#     for _ in range(num_trials):
+
+#         new_traj = rollout_random_trajectory_from_state(
+#             env,
+#             start_state,
+#             horizon,
+#             rng,
+#         )
+
+#         if len(new_traj) == 0:
+#             continue
+
+#         new_return = trajectory_return(env, new_traj, gamma)
+
+#         if new_return > best_return:
+#             best_return = new_return
+#             best_traj = new_traj
+
+#     if best_return > original_return:
+#         return (best_traj, traj)
+
+#     return None
+
+# ============================================================
+# Improvement search (POOL + RANDOM)
+# ============================================================
+
+def simulate_correction(env, traj, num_trials, gamma, rng, pool_by_start=None):
 
     start_state = traj[0][0]
     horizon = len(traj)
@@ -1273,6 +1331,29 @@ def simulate_correction(env, traj, num_trials, gamma, rng):
 
     best_traj = traj
     best_return = original_return
+
+    # ---------------------------------------
+    # 1. Pool-based improvements
+    # ---------------------------------------
+
+    if pool_by_start is not None:
+
+        candidates = pool_by_start.get(start_state, [])
+
+        for cand in candidates:
+
+            if cand is traj:
+                continue
+
+            r = trajectory_return(env, cand, gamma)
+
+            if r > best_return:
+                best_return = r
+                best_traj = cand
+
+    # ---------------------------------------
+    # 2. Random rollout improvements
+    # ---------------------------------------
 
     for _ in range(num_trials):
 
@@ -1297,25 +1378,81 @@ def simulate_correction(env, traj, num_trials, gamma, rng):
 
     return None
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def generate_improvements(env, trajectories, *, num_trials, gamma, rng):
+
+def _simulate_correction_worker(args):
+
+    env, traj, num_trials, gamma, seed, pool_by_start = args
+
+    rng = np.random.default_rng(seed)
+
+    return simulate_correction(
+        env,
+        traj,
+        num_trials,
+        gamma,
+        rng,
+        pool_by_start=pool_by_start
+    )
+
+
+def generate_improvements(
+    env,
+    trajectories,
+    *,
+    num_trials,
+    gamma,
+    rng,
+    pool_by_start=None,
+    max_workers=8
+):
+
+    if not trajectories:
+        return []
 
     corrections = []
 
-    for traj in trajectories:
+    # split seeds for reproducibility
+    seeds = rng.integers(0, 2**32 - 1, size=len(trajectories))
 
-        res = simulate_correction(
-            env,
-            traj,
-            num_trials,
-            gamma,
-            rng
-        )
+    tasks = [
+        (env, traj, num_trials, gamma, int(seed), pool_by_start)
+        for traj, seed in zip(trajectories, seeds)
+    ]
 
-        if res is not None:
-            corrections.append(res)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+
+        futures = [executor.submit(_simulate_correction_worker, t) for t in tasks]
+
+        for f in as_completed(futures):
+
+            res = f.result()
+
+            if res is not None:
+                corrections.append(res)
 
     return corrections
+
+
+# def generate_improvements(env, trajectories, *, num_trials, gamma, rng):
+
+#     corrections = []
+
+#     for traj in trajectories:
+
+#         res = simulate_correction(
+#             env,
+#             traj,
+#             num_trials,
+#             gamma,
+#             rng
+#         )
+
+#         if res is not None:
+#             corrections.append(res)
+
+#     return corrections
 
 
 # ============================================================
@@ -1369,7 +1506,7 @@ class FeedbackGenerationSpec:
     estop_budget: int = 1000
     improvement_budget: int = 1000
 
-    improvement_trials: int = 50
+    improvement_trials: int = 100
 
     gamma: float = 0.99
     estop_beta: float = 10.0
@@ -1378,6 +1515,74 @@ class FeedbackGenerationSpec:
 # ============================================================
 # Worker (runs inside CPU process)
 # ============================================================
+
+# def _generate_atoms_single_env(args):
+
+#     (
+#         env_idx,
+#         env,
+#         Q,
+#         spec,
+#         seed,
+#         pairwise_budget,
+#         estop_budget,
+#         improvement_budget
+#     ) = args
+
+#     rng = np.random.default_rng(seed)
+
+#     traj_pool = generate_trajectory_pool(
+#         env,
+#         trajs_per_state=spec.trajs_per_state,
+#         max_horizon=spec.max_horizon,
+#         rng=rng
+#     )
+
+#     demos = generate_demonstrations(
+#         env,
+#         Q,
+#         n_demos=spec.demo_count,
+#         max_steps=spec.demo_steps,
+#         rng=rng
+#     )
+
+#     pairwise = generate_pairwise_preferences(
+#         env,
+#         traj_pool,
+#         gamma=spec.gamma,
+#         n_pairs=pairwise_budget,
+#         rng=rng
+#     )
+
+#     improvements = generate_improvements(
+#         env,
+#         traj_pool,
+#         num_trials=spec.improvement_trials,
+#         gamma=spec.gamma,
+#         rng=rng
+#     )
+
+#     improvements = improvements[:improvement_budget]
+
+#     idx = rng.choice(
+#         len(traj_pool),
+#         size=min(estop_budget, len(traj_pool)),
+#         replace=False
+#     )
+
+#     estops = [
+#         simulate_human_estop(env, traj_pool[i], spec.estop_beta)
+#         for i in idx
+#     ]
+
+#     atoms = []
+
+#     atoms.extend(atoms_from_trajs(env_idx, demos, "demo"))
+#     atoms.extend(atoms_from_trajs(env_idx, pairwise, "pairwise"))
+#     atoms.extend(atoms_from_trajs(env_idx, estops, "estop"))
+#     atoms.extend(atoms_from_trajs(env_idx, improvements, "improvement"))
+
+#     return env_idx, atoms
 
 def _generate_atoms_single_env(args):
 
@@ -1394,12 +1599,23 @@ def _generate_atoms_single_env(args):
 
     rng = np.random.default_rng(seed)
 
+    # ------------------------------------------------
+    # Generate trajectory pool
+    # ------------------------------------------------
+
     traj_pool = generate_trajectory_pool(
         env,
         trajs_per_state=spec.trajs_per_state,
         max_horizon=spec.max_horizon,
         rng=rng
     )
+
+    # build pool index (needed for pool-based improvements)
+    pool_by_start = build_pool_by_start(traj_pool)
+
+    # ------------------------------------------------
+    # Demonstrations
+    # ------------------------------------------------
 
     demos = generate_demonstrations(
         env,
@@ -1409,6 +1625,10 @@ def _generate_atoms_single_env(args):
         rng=rng
     )
 
+    # ------------------------------------------------
+    # Pairwise
+    # ------------------------------------------------
+
     pairwise = generate_pairwise_preferences(
         env,
         traj_pool,
@@ -1417,15 +1637,25 @@ def _generate_atoms_single_env(args):
         rng=rng
     )
 
+    # ------------------------------------------------
+    # Improvements (POOL + RANDOM + PARALLEL)
+    # ------------------------------------------------
+
     improvements = generate_improvements(
         env,
         traj_pool,
         num_trials=spec.improvement_trials,
         gamma=spec.gamma,
-        rng=rng
+        rng=rng,
+        pool_by_start=pool_by_start,
+        max_workers=spec.trajs_per_state if spec.trajs_per_state < 16 else 16
     )
 
     improvements = improvements[:improvement_budget]
+
+    # ------------------------------------------------
+    # E-stop
+    # ------------------------------------------------
 
     idx = rng.choice(
         len(traj_pool),
@@ -1437,6 +1667,10 @@ def _generate_atoms_single_env(args):
         simulate_human_estop(env, traj_pool[i], spec.estop_beta)
         for i in idx
     ]
+
+    # ------------------------------------------------
+    # Atom conversion
+    # ------------------------------------------------
 
     atoms = []
 

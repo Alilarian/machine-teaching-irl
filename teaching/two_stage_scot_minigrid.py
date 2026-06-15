@@ -8,6 +8,8 @@ import time
 def make_key_for(*, normalize=True, round_decimals=12):
     """
     Returns a function that maps a constraint vector -> canonical key.
+    Normalizes sign so the first nonzero element is positive, matching
+    the _normalize_dir convention used by remove_redundant_constraints.
     """
     def key_for(v):
         v = np.asarray(v, dtype=float)
@@ -17,7 +19,16 @@ def make_key_for(*, normalize=True, round_decimals=12):
         if n == 0.0 or not np.isfinite(n):
             return ("ZERO",)
 
-        vv = (v / n) if normalize else v
+        vv = (v / n) if normalize else v.copy()
+
+        # Flip sign so first nonzero element is positive — must match _normalize_dir
+        tol = 1e-12
+        for x in vv:
+            if abs(x) > tol:
+                if x < 0:
+                    vv = -vv
+                break
+
         vv = np.round(vv, round_decimals)
         return tuple(vv.tolist())
 
@@ -299,7 +310,7 @@ def two_stage_scot(
     pool_atoms = [candidates_per_env[k] for k in selected_mdps]
     pool_constraints = [constraints_per_env_per_atom[k] for k in selected_mdps]
 
-    chosen_local, s2_stats, _ = scot_greedy_family_atoms_tracked(
+    chosen_local, s2_stats, chosen_constraints = scot_greedy_family_atoms_tracked(
         U_universal,
         pool_atoms,
         pool_constraints,
@@ -314,6 +325,7 @@ def two_stage_scot(
 
     return {
         "chosen": chosen_global,
+        "chosen_constraints": chosen_constraints,
         "selected_mdps": selected_mdps,
 
         "s1_iterations": s1_stats["s1_iterations"],

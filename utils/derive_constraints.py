@@ -614,8 +614,13 @@ def recover_constraints_and_coverage(
         if n < 1e-12:
             return None
         v = v / n
-        if v[0] < 0:
-            v = -v
+        # Flip sign using first nonzero element — matches _normalize_dir in lp_redundancy.py
+        tol = 1e-12
+        for x in v:
+            if abs(x) > tol:
+                if x < 0:
+                    v = -v
+                break
         return v
 
     U_univ_norm = [normalize(u) for u in U_universal]

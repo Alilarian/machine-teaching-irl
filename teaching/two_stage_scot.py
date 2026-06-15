@@ -309,7 +309,8 @@ from utils import atom_to_constraints, remove_redundant_constraints
 def make_key_for(*, normalize=True, round_decimals=12):
     """
     Canonical identity for constraints.
-    Direction-only identity.
+    Normalizes direction so the first nonzero element is positive,
+    matching the sign convention used by _normalize_dir in lp_redundancy.py.
     """
     def key_for(v):
         v = np.asarray(v, dtype=float)
@@ -318,18 +319,17 @@ def make_key_for(*, normalize=True, round_decimals=12):
         if n == 0.0 or not np.isfinite(n):
             return ("ZERO",)
 
-        vv = v / n if normalize else v
+        vv = v / n if normalize else v.copy()
 
-        # NOTE:
-        # You currently collapse sign (allow sign flip).
-        # This can be mathematically wrong for halfspace constraints.
-        # I'm leaving it as-is because you asked to solve the Stage-2 recomputation bug.
-        # If you want the next fix, remove this sign collapse.
-        # if vv[0] < 0:
-        #     vv = -vv
+        # Flip sign so first nonzero element is positive — must match _normalize_dir
+        tol = 1e-12
+        for x in vv:
+            if abs(x) > tol:
+                if x < 0:
+                    vv = -vv
+                break
+
         return tuple(np.round(vv, round_decimals))
-
-        #eturn tuple(np.round(vv, round_decimals))
 
     return key_for
 

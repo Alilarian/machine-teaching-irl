@@ -81,6 +81,37 @@ def coverage_report_key_based(
         "coverage_frac_all_envs": len(cov_all) / max(len(universe), 1),
     }
 
+def atom_level_coverage_key_based(
+    U_universal,
+    chosen_constraints,
+    *,
+    normalize=True,
+    round_decimals=12,
+):
+    """
+    Computes coverage at the atom level using the actual Stage-2 chosen constraints,
+    not the MDP-level (Stage-1) constraints.
+    """
+    from teaching.two_stage_scot_minigrid import make_key_for
+    key_for = make_key_for(normalize=normalize, round_decimals=round_decimals)
+    key_to_uid = {}
+    for u in U_universal:
+        k = key_for(u)
+        if k not in key_to_uid:
+            key_to_uid[k] = len(key_to_uid)
+    universe = set(key_to_uid.values())
+    covered = set()
+    if len(chosen_constraints) > 0:
+        for row in np.atleast_2d(chosen_constraints):
+            uid = key_to_uid.get(key_for(row))
+            if uid is not None:
+                covered.add(uid)
+    return {
+        "universe_size": len(universe),
+        "covered_by_chosen_atoms": len(covered),
+        "coverage_frac_chosen_atoms": len(covered) / max(len(universe), 1),
+    }
+
 # =============================================================================
 # Utility Functions
 # =============================================================================
@@ -344,10 +375,9 @@ def main(args):
         if len(env) > 0 else np.zeros((0, d))
         for env in U_atoms_per_env
     ]
-    cov = coverage_report_key_based(
+    cov = atom_level_coverage_key_based(
         U_universal=U_universal,
-        U_per_env_envlevel=U_atoms_envlevel,
-        selected_envs=out["selected_mdps"],
+        chosen_constraints=out["chosen_constraints"],
     )
 
     # 6) Reward Learning — LP
@@ -388,13 +418,12 @@ def main(args):
     # (other baselines remain commented)
 
     # 8) Save Results
-    cov_ts = coverage_report_key_based(
+    cov_ts = atom_level_coverage_key_based(
         U_universal=U_universal,
-        U_per_env_envlevel=U_atoms_envlevel,
-        selected_envs=out["selected_mdps"],
+        chosen_constraints=out["chosen_constraints"],
     )
-    ts_n_constraints = cov_ts["covered_by_selected"]
-    ts_coverage = cov_ts["coverage_frac_selected"]
+    ts_n_constraints = cov_ts["covered_by_chosen_atoms"]
+    ts_coverage = cov_ts["coverage_frac_chosen_atoms"]
 
     rand_constraint_counts = []
     rand_coverages = []

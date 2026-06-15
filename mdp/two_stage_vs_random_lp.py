@@ -201,7 +201,7 @@ def run_experiment(
     )
     Q_list = parallel_value_iteration(envs, epsilon=1e-10)
     SFs = compute_successor_features_family(
-        envs, Q_list, convention="on", zero_terminal_features=True,
+        envs, Q_list, convention="entering", zero_terminal_features=True,
     )
     # Split into train and held-out
     rng = np.random.default_rng(seed)

@@ -180,9 +180,10 @@ class GridWorldMDPFromLayoutEnv(gym.Env):
         next_r, next_c = divmod(next_flat, self.columns)
 
         # Reward = dot product only when actually moving to new state
-        reward = 0.0 if next_flat == current_flat else np.dot(
-            self.grid_features[next_r, next_c], self.feature_weights
-        )
+        # reward = 0.0 if next_flat == current_flat else np.dot(
+        #     self.grid_features[next_r, next_c], self.feature_weights
+        # )
+        reward = np.dot(self.grid_features[next_r, next_c], self.feature_weights)
 
         self._agent_location = np.array([next_r, next_c])
 
