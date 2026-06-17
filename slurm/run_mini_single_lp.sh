@@ -9,6 +9,7 @@
 #SBATCH --ntasks=1
 #SBATCH -c 16
 #SBATCH -t 24:00:00
+#SBATCH --mem=96G
 # Pass --account, --partition, and -M (cluster) via sbatch CLI or submit_all.sh
 
 #SBATCH --array=0-39
@@ -49,7 +50,7 @@ python two_stage_scot_vs_random_minigrid_lp.py \
   --gamma 0.99 \
   --state_fraction 0.4 \
   --feedback "$MODALITY" \
-  --total_budget 2000 \
+  --total_budget 10000 \
   --random_trials 10 \
   --seed "$SEED" \
   --heldout_frac 0.2 \

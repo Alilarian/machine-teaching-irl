@@ -9,6 +9,7 @@
 #SBATCH --ntasks=1
 #SBATCH -c 16
 #SBATCH -t 16:00:00
+#SBATCH --mem=96G
 # Pass --account, --partition, and -M (cluster) via sbatch CLI or submit_all.sh
 
 #SBATCH --array=0-39
@@ -46,10 +47,10 @@ echo "Output: ${OUT_DIR}"
 python two_stage_vs_random_lp.py \
   --n_envs 50 \
   --mdp_size 6 \
-  --feature_dim 2 \
+  --feature_dim 4 \
   --feedback "$MODALITY" \
   --demo_env_fraction 1.0 \
-  --total_budget 2000 \
+  --total_budget 10000 \
   --random_trials 10 \
   --seed "$SEED" \
   --heldout-frac 0.2 \
