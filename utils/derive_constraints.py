@@ -577,67 +577,82 @@ def derive_constraints_from_q_family(
 
 #     return n_unique, coverage
 
+def _key_for_coverage(v, round_decimals=12, tol=1e-12):
+    """Canonical direction key matching make_key_for() in two_stage_scot.py."""
+    v = np.asarray(v, dtype=float)
+    n = np.linalg.norm(v)
+    if n == 0.0 or not np.isfinite(n):
+        return None
+    vv = v / n
+    for x in vv:
+        if abs(x) > tol:
+            if x < 0:
+                vv = -vv
+            break
+    return tuple(np.round(vv, round_decimals))
+
+
 def recover_constraints_and_coverage(
     chosen_atoms,
     SFs,
     envs,
     U_universal,
 ):
+    """
+    Measure coverage of U_universal by the chosen atoms' constraints.
+
+    Uses the same key-based direction matching as two_stage_scot_cached
+    internally, applied directly to raw re-derived constraints. This avoids
+    the cosine dedup inside derive_constraints_from_atoms, which can merge
+    nearly-parallel but distinct U_universal directions and falsely report
+    missed coverage.
+    """
     if len(chosen_atoms) == 0:
+        return 0, 0.0
+
+    # Build universe key index
+    key_to_uid = {}
+    for v in U_universal:
+        k = _key_for_coverage(v)
+        if k is not None and k not in key_to_uid:
+            key_to_uid[k] = len(key_to_uid)
+    universe_size = len(key_to_uid)
+    if universe_size == 0:
         return 0, 0.0
 
     num_envs = len(envs)
     atoms_per_env = [[] for _ in range(num_envs)]
-
     for env_idx, atom in chosen_atoms:
         if env_idx < 0 or env_idx >= num_envs:
             raise ValueError(f"Invalid env_idx={env_idx}")
         atoms_per_env[env_idx].append(atom)
 
-    _, U_chosen = derive_constraints_from_atoms(
-        atoms_per_env,
-        SFs,
-        envs,
-    )
-
-    if U_chosen is None or len(U_chosen) == 0:
-        return 0, 0.0
-
-    U_chosen_unique = remove_redundant_constraints(U_chosen)
-
-    # ---- compute intersection properly ----
-    tol = 1e-6
-
-    def normalize(v):
-        v = np.asarray(v, dtype=float)
-        n = np.linalg.norm(v)
-        if n < 1e-12:
-            return None
-        v = v / n
-        # Flip sign using first nonzero element — matches _normalize_dir in lp_redundancy.py
-        tol = 1e-12
-        for x in v:
-            if abs(x) > tol:
-                if x < 0:
-                    v = -v
-                break
-        return v
-
-    U_univ_norm = [normalize(u) for u in U_universal]
-    U_chosen_norm = [normalize(u) for u in U_chosen_unique]
-
-    intersection = 0
-    for u in U_chosen_norm:
-        if u is None:
+    # Re-derive raw constraints per atom and key-match against U_universal
+    covered_uids = set()
+    all_raw = []
+    for env_idx, (atoms, sf, env) in enumerate(zip(atoms_per_env, SFs, envs)):
+        if not atoms:
             continue
-        for v in U_univ_norm:
-            if v is None:
-                continue
-            if np.linalg.norm(u - v) < tol:
-                intersection += 1
-                break
+        mu_sa = sf[0]
+        for atom in atoms:
+            for v in atom_to_constraints(atom, mu_sa, env):
+                v = np.asarray(v, dtype=float)
+                all_raw.append(v)
+                k = _key_for_coverage(v)
+                if k is not None:
+                    uid = key_to_uid.get(k)
+                    if uid is not None:
+                        covered_uids.add(uid)
 
-    n_unique = len(U_chosen_unique)
-    coverage = intersection / len(U_universal)
+    # n_unique: key-deduplicated then LP-redundancy-removed
+    seen_keys = set()
+    key_deduped = []
+    for v in all_raw:
+        k = _key_for_coverage(v)
+        if k is not None and k not in seen_keys:
+            seen_keys.add(k)
+            key_deduped.append(v)
+    n_unique = len(remove_redundant_constraints(key_deduped)) if key_deduped else 0
 
+    coverage = len(covered_uids) / universe_size
     return n_unique, coverage
