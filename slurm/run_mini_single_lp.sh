@@ -48,7 +48,7 @@ python two_stage_scot_vs_random_minigrid_lp.py \
   --n_envs 50 \
   --grid_size 8 \
   --gamma 0.99 \
-  --state_fraction 0.4 \
+  --state_fraction 1.0 \
   --feedback "$MODALITY" \
   --total_budget 10000 \
   --random_trials 10 \
