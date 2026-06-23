@@ -55,6 +55,7 @@ python two_stage_scot_vs_random_minigrid_lp.py \
   --seed "$SEED" \
   --heldout_frac 0.2 \
   --epsilon 1e-6 \
+  --lp_objective maximin \
   --alloc_method uniform \
   --n_jobs "$SLURM_CPUS_PER_TASK" \
   --result_dir "$OUT_DIR"

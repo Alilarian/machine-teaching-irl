@@ -140,21 +140,29 @@ def scot_output_to_atoms_flat(out):
 # ──── REPLACEMENT: LP instead of BIRL ────────────────────────────────────────
 def lp_atomic_to_Q_and_wmap(mdps, atoms_flat, Psi_sa_list, args):
     """
-    LP-based reward inference with max-margin + L1 normalization.
+    LP-based reward inference.
+
+    Two objectives controlled by args.lp_objective:
+      "maximin"  — maximize the minimum margin (robust, avoids corner solutions).
+                   Formulation: max m  s.t.  U_i·w >= m >= epsilon,  Σ|w_j|=1
+      "sum"      — maximize sum of margins (original formulation).
+                   Formulation: max Σ U_i·w  s.t.  U_i·w >= epsilon,  Σ|w_j|=1
+
+    "maximin" is the default because "sum" collapses to a corner of the L1 ball
+    when constraint normals share a dominant direction (e.g. estop/demo in minigrid
+    are dominated by dist_goal, causing "sum" to recover w=[-1,0,0,0] and ignore lava).
     """
-    # Group atoms per environment
     atoms_per_env = [[] for _ in mdps]
     for env_idx, atom in atoms_flat:
         atoms_per_env[env_idx].append(atom)
 
-    # Derive constraints
     U_atoms = constraints_from_atoms_multi_env(
         atoms_per_env=atoms_per_env,
         mdps=mdps,
         Psi_sa_list=Psi_sa_list,
         terminal_mask_list=[mdp["terminal"] for mdp in mdps],
         normalize=True,
-        n_jobs=args.n_jobs,
+        n_jobs=1,
     )
 
     def flatten_constraints(constraints_per_env_per_atom):
@@ -163,46 +171,44 @@ def lp_atomic_to_Q_and_wmap(mdps, atoms_flat, Psi_sa_list, args):
             for atom_list in env_list:
                 for c in atom_list:
                     flat.append(np.asarray(c, dtype=float))
-        return np.vstack(flat)  # shape (N, d)
+        return flat
 
-    U_atoms = flatten_constraints(U_atoms)
+    flat = flatten_constraints(U_atoms)
 
-    print(U_atoms[0])
-    print(len(U_atoms))
-
-
-    print(U_atoms.shape)
-
-    if U_atoms is None or len(U_atoms) == 0:
+    if not flat:
         print("Warning: No constraints from selected atoms → using zero reward")
         w_sol = np.zeros(len(mdps[0]["true_w"]))
     else:
-        U = remove_redundant_constraints(np.vstack(U_atoms))
+        U = remove_redundant_constraints(np.vstack(flat))
         U = np.asarray(U, dtype=float)
         d = U.shape[1]
         n = U.shape[0]
 
-        prob = pulp.LpProblem("MaxMarginRewardLP", pulp.LpMaximize)
-
-        # Reward weights
+        lp_obj = getattr(args, "lp_objective", "maximin")
+        prob = pulp.LpProblem("RewardLP", pulp.LpMaximize)
         w = [pulp.LpVariable(f"w_{j}") for j in range(d)]
 
-        # Objective: maximize sum of margins
-        margins = [pulp.lpSum(U[i, j] * w[j] for j in range(d)) for i in range(n)]
-        prob += pulp.lpSum(margins)
-
-        # Hard margin constraints
-        for m in margins:
-            prob += m >= args.epsilon
-
-        # L1 normalization: ∑ |w_j| = 1
+        # L1 normalization: Σ |w_j| = 1
         abs_w = [pulp.LpVariable(f"abs_w_{j}", lowBound=0) for j in range(d)]
         for j in range(d):
             prob += abs_w[j] >= w[j]
             prob += abs_w[j] >= -w[j]
         prob += pulp.lpSum(abs_w) == 1
 
-        # Solve
+        if lp_obj == "maximin":
+            # maximize m  s.t.  U_i·w >= m for all i,  m >= epsilon
+            m = pulp.LpVariable("m")
+            prob += m
+            prob += m >= args.epsilon
+            for i in range(n):
+                prob += pulp.lpSum(U[i, j] * w[j] for j in range(d)) >= m
+        else:
+            # maximize Σ U_i·w  s.t.  U_i·w >= epsilon for all i  (original)
+            margins = [pulp.lpSum(U[i, j] * w[j] for j in range(d)) for i in range(n)]
+            prob += pulp.lpSum(margins)
+            for mg in margins:
+                prob += mg >= args.epsilon
+
         status = prob.solve(pulp.PULP_CBC_CMD(msg=0))
         if pulp.LpStatus[status] != "Optimal":
             print(f"LP not optimal ({pulp.LpStatus[status]}) → using zero vector")
@@ -210,7 +216,6 @@ def lp_atomic_to_Q_and_wmap(mdps, atoms_flat, Psi_sa_list, args):
         else:
             w_sol = np.array([pulp.value(wj) for wj in w])
 
-    # Compute Q-values
     _, Q_list, _ = value_iteration_next_state_multi(
         mdps=mdps,
         theta=w_sol,
@@ -512,6 +517,7 @@ def main(args):
             "alloc_alpha": args.alloc,
             "lp": {
                 "epsilon": args.epsilon,
+                "objective": args.lp_objective,
             },
             # ─── New field added for the held-out experiment ───
             "heldout_frac": args.heldout_frac,
@@ -552,9 +558,12 @@ if __name__ == "__main__":
     parser.add_argument("--alloc", type=float, default=None)
     parser.add_argument("--epsilon", type=float, default=1e-6,
                         help="Minimum margin for LP hard constraints")
+    parser.add_argument("--lp_objective", type=str, default="maximin",
+                        choices=["maximin", "sum"],
+                        help="LP objective: 'maximin' (maximize min margin, robust) "
+                             "or 'sum' (maximize total margin, original)")
     parser.add_argument("--random_trials", type=int, default=10)
     parser.add_argument("--result_dir", type=str, default="results_minigrid_lp")
-    # In the CLI section (after other parser.add_argument calls)
     parser.add_argument("--heldout_frac", type=float, default=0.2,
                     help="Fraction of MDPs to hold out for evaluation (0.0 to disable)")
 

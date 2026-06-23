@@ -758,6 +758,7 @@ def generate_feedback_candidate_atoms(
     pairwise_fn,
     estop_fn,
     improvement_fn,
+    max_improvement_trajs=500,
 ):
     atoms_per_env = [[] for _ in range(len(mdps))]
 
@@ -780,7 +781,14 @@ def generate_feedback_candidate_atoms(
                 )
 
         elif atom_type == "improvement":
-            corrs = improvement_fn(trajs, mdp, mdp["true_w"])
+            # Cap trajectory pool to avoid O(n_trajs * n_random_rollouts) explosion.
+            # Generating corrections for 18k+ trajectories per env takes days at scale.
+            if len(trajs) > max_improvement_trajs:
+                idx = rng.choice(len(trajs), size=max_improvement_trajs, replace=False)
+                trajs_for_corr = [trajs[i] for i in idx]
+            else:
+                trajs_for_corr = trajs
+            corrs = improvement_fn(trajs_for_corr, mdp, mdp["true_w"])
             for c in corrs:
                 atoms_per_env[env_id].append(
                     Atom("improvement", env_id, c)
